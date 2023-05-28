@@ -498,12 +498,9 @@ paths:
               xml:
                 name: password
               properties:
-                currentPassword:
+                password:
                   type: string
-                  example: 'oldPass123'
-                newPassword:
-                  type: string
-                  example: 'newPass321'
+                  example: 'QWEWETEW12312'
       responses:
         '200':
           description: successful operation
