@@ -1,11 +1,7 @@
 
 .DS_Store
 /diploma-frontend_gitlab/
-/megano/db.sqlite3
-/.idea/inspectionProfiles/profiles_settings.xml
-/.idea/inspectionProfiles/Project_Default.xml
-/.idea/.gitignore
-/.idea/misc.xml
-/.idea/modules.xml
-/.idea/Python_django_diploma_dpo.iml
-/.idea/vcs.xml
+*.sqlite3
+/.idea/
+/Archive/
+cd
