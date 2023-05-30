@@ -172,8 +172,9 @@ def sales(request):
 	}
 	return JsonResponse(data)
 
+
 def basket(request):
-	if(request.method == "GET"):
+	if request.method == "GET":
 		print('[GET] /api/basket/')
 		data = [
 			{
