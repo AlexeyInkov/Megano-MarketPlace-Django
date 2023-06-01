@@ -7,7 +7,7 @@ class Image(models.Model):
 
 
 class Profile(models.Model):
-    User = models.OneToOneField(User, on_delete=models.CASCADE)
+    user = models.OneToOneField(User, on_delete=models.CASCADE)
     phone = models.CharField(max_length=15, null=True)
     avatar = models.ForeignKey(Image, on_delete=models.PROTECT, related_name='avatar')
 
@@ -16,15 +16,24 @@ class Subcategory(models.Model):
     title = models.CharField(max_length=100)
     image = models.ForeignKey(Image, on_delete=models.PROTECT, related_name='image_subcat')
 
+    def __str__(self):
+        return self.title
+
 
 class Category(models.Model):
     title = models.CharField(max_length=100)
     image = models.ForeignKey(Image, on_delete=models.PROTECT, related_name='image_cat')
     subcategories = models.ForeignKey(Subcategory, on_delete=models.PROTECT, related_name='subcategories')
 
+    def __str__(self):
+        return self.title
+
 
 class Tag(models.Model):
     name = models.CharField(max_length=100)
+
+    def __str__(self):
+        return self.name
 
 
 class Review(models.Model):
@@ -37,9 +46,6 @@ class Review(models.Model):
 class Specification(models.Model):
     name = models.CharField(max_length=100)
     value = models.CharField(max_length=100)
-
-
-
 
 
 class Product(models.Model):
@@ -75,7 +81,7 @@ class ProductOrder(models.Model):
     count = models.IntegerField(default=0)
 
 
-class Basket(models.Model):
+class Basket(models.Model):  # Возможно придется подумать
     products = models.ManyToManyField(ProductOrder, related_name='baskets')
 
 
@@ -89,7 +95,3 @@ class Order(models.Model):
     city = models.CharField(max_length=100)
     address = models.CharField(max_length=250)
     products = models.ManyToManyField(ProductOrder, related_name='orders')
-
-
-
-
