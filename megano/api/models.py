@@ -9,17 +9,17 @@ class Image(models.Model):
 class Profile(models.Model):
     User = models.OneToOneField(User, on_delete=models.CASCADE)
     phone = models.CharField(max_length=15, null=True)
-    avatar = models.ForeignKey(Image, Null=True, on_delete=models.PROTECT, related_name='avatar')
+    avatar = models.ForeignKey(Image, on_delete=models.PROTECT, related_name='avatar')
 
 
 class Subcategory(models.Model):
     title = models.CharField(max_length=100)
-    image = models.ForeignKey(Image, on_delete=models.PROTECT, related_name='image')
+    image = models.ForeignKey(Image, on_delete=models.PROTECT, related_name='image_subcat')
 
 
 class Category(models.Model):
     title = models.CharField(max_length=100)
-    image = models.ForeignKey(Image, on_delete=models.PROTECT, related_name='image')
+    image = models.ForeignKey(Image, on_delete=models.PROTECT, related_name='image_cat')
     subcategories = models.ForeignKey(Subcategory, on_delete=models.PROTECT, related_name='subcategories')
 
 
@@ -39,8 +39,7 @@ class Specification(models.Model):
     value = models.CharField(max_length=100)
 
 
-def get_short_description(text):
-    return text[:50] + '...'
+
 
 
 class Product(models.Model):
@@ -50,13 +49,17 @@ class Product(models.Model):
     date = models.DateField(auto_now_add=True)
     title = models.CharField(max_length=100)
     free_delivery = models.BooleanField(default=False)
-    images = models.ForeignKey(Image, on_delete=models.PROTECT, related_name='images')
+    images = models.ForeignKey(Image, on_delete=models.PROTECT, related_name='images_prod')
     tags = models.ForeignKey(Tag, on_delete=models.PROTECT, related_name='tags')
     reviews = models.ForeignKey(Review, on_delete=models.PROTECT, related_name='reviews')
     rating = models.FloatField(default=0)
     full_description = models.TextField(null=True)
-    description = get_short_description(full_description)
-    specifications = models.ManyToManyField(Specification, on_delete=models.PROTECT, related_name='specifications')
+    specifications = models.ManyToManyField(Specification, related_name='specifications')
+
+    def description(self):
+        if len(str(self.full_description)) > 50:
+            return str(self.full_description)[:50] + '...'
+        return self.full_description
 
 
 class Sale(models.Model):
@@ -64,7 +67,6 @@ class Sale(models.Model):
     sale_price = models.FloatField(default=0)
     dateFrom = models.DateField()
     dateTo = models.DateField()
-
 
 
 class ProductOrder(models.Model):
