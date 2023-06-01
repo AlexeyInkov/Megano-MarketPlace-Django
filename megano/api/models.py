@@ -66,6 +66,7 @@ class Sale(models.Model):
     dateTo = models.DateField()
 
 
+
 class ProductOrder(models.Model):
     product = models.ForeignKey(Product, on_delete=models.PROTECT, related_name='product')
     price = models.FloatField(default=0)
