@@ -14,22 +14,22 @@ class Migration(migrations.Migration):
         migrations.AlterField(
             model_name='category',
             name='image',
-            field=models.ImageField(blank=True, null=True, upload_to=api.models.get_cat_path),
+            field=models.ImageField(blank=True, null=True, upload_to=api.models.get_image_path),
         ),
         migrations.AlterField(
             model_name='product',
             name='images',
-            field=models.ImageField(blank=True, null=True, upload_to=api.models.get_product_path),
+            field=models.ImageField(blank=True, null=True, upload_to=api.models.get_image_path),
         ),
         migrations.AlterField(
             model_name='profile',
             name='avatar',
-            field=models.ImageField(blank=True, null=True, upload_to=api.models.get_avatar_path),
+            field=models.ImageField(blank=True, null=True, upload_to=api.models.get_image_path),
         ),
         migrations.AlterField(
             model_name='subcategory',
             name='image',
-            field=models.ImageField(blank=True, null=True, upload_to=api.models.get_cat_path),
+            field=models.ImageField(blank=True, null=True, upload_to=api.models.get_image_path),
         ),
         migrations.DeleteModel(
             name='Image',

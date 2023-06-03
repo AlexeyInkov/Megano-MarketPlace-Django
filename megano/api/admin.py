@@ -1,6 +1,7 @@
 from django.contrib import admin
 
 from .models import (
+    Image,
     Profile,
     Category,
     Tag,
@@ -28,6 +29,7 @@ class ProductAdmin(admin.ModelAdmin):
 
 
 admin.site.register(Tag, admin.ModelAdmin)
+admin.site.register(Image, admin.ModelAdmin)
 admin.site.register(Review, admin.ModelAdmin)
 admin.site.register(Specification, admin.ModelAdmin)
 

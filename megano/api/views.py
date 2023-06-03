@@ -67,7 +67,7 @@ def banners(request):
 
 class CategoryView(ListModelMixin, GenericAPIView):
 	serializer_class = CategorySerializer
-	queryset = Category.objects.filter(parent=None).all()
+	queryset = Category.objects.filter(parent=None).select_related('image')
 
 	def get(self, request):
 		return self.list(request)

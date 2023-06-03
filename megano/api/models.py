@@ -4,29 +4,24 @@ from django.contrib.auth.models import User
 from django.db import models
 
 
-# TODO объеденить в одну функцию
-def get_avatar_path(instance: 'Profile', filename: str) -> str:
-    return 'image/avatar/{username}/{filename}'.format(
-        username=instance.user.username,
+def get_image_path(instance, filename) -> str:
+    return 'image/{alt}/{filename}'.format(
+        alt=instance.alt,
         filename=filename)
 
 
-def get_cat_path(instance, filename) -> str:
-    return 'image/category/{title}/{filename}'.format(
-        title=instance.title,
-        filename=filename)
+class Image(models.Model):
+    src = models.ImageField(upload_to=get_image_path)
+    alt = models.CharField(max_length=50)
 
-
-def get_product_path(instance, filename) -> str:
-    return 'image/product/{title}/{filename}'.format(
-        title=instance.title,
-        filename=filename)
+    def __str__(self):
+        return self.alt
 
 
 class Profile(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE)
     phone = models.CharField(max_length=15, null=True)
-    avatar = models.ImageField(null=True, blank=True, upload_to=get_avatar_path)
+    avatar = models.ForeignKey(Image, on_delete=models.CASCADE, null=True, blank=True, related_name='avatar')
 
     def __str__(self):
         return self.user.username + '_profile'
@@ -34,7 +29,7 @@ class Profile(models.Model):
 
 class Category(models.Model):
     title = models.CharField(max_length=100)
-    image = models.ImageField(null=True, blank=True, upload_to=get_cat_path)
+    image = models.ForeignKey(Image, on_delete=models.CASCADE, null=True, blank=True, related_name='category')
     parent = models.ForeignKey(
         'self', on_delete=models.CASCADE,
         null=True,
@@ -74,7 +69,7 @@ class Product(models.Model):
     date = models.DateField(auto_now_add=True)
     title = models.CharField(max_length=100)
     free_delivery = models.BooleanField(default=False)
-    images = models.ImageField(null=True, blank=True, upload_to=get_product_path)
+    images = models.ForeignKey(Image, on_delete=models.CASCADE, null=True, blank=True, related_name='product')
     tags = models.ForeignKey(Tag, on_delete=models.PROTECT, related_name='tags', null=True, blank=True)
     reviews = models.ForeignKey(Review, on_delete=models.PROTECT, related_name='reviews', null=True, blank=True)
     rating = models.FloatField(default=0)
