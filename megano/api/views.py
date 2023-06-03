@@ -5,6 +5,13 @@ import json
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth import get_user_model
 from django.http import HttpResponse
+from rest_framework.generics import GenericAPIView
+from rest_framework.mixins import ListModelMixin
+
+from .models import Category
+from .serializers import (
+	CategorySerializer
+)
 
 User = get_user_model()
 
@@ -34,28 +41,36 @@ def banners(request):
 	]
 	return JsonResponse(data, safe=False)
 
-def categories(request):
-	data = [
-		 {
-			 "id": 123,
-			 "title": "video card",
-			 "image": {
-				"src": "https://proprikol.ru/wp-content/uploads/2020/12/kartinki-ryabchiki-14.jpg",
-				 "alt": "Image alt string"
-			 },
-			 "subcategories": [
-				 {
-					 "id": 123,
-					 "title": "video card",
-					 "image": {
-							"src": "https://proprikol.ru/wp-content/uploads/2020/12/kartinki-ryabchiki-14.jpg",
-						 	"alt": "Image alt string"
-					 }
-				 }
-			 ]
-		 }
-	 ]
-	return JsonResponse(data, safe=False)
+# def categories(request):
+# 	data = [
+# 		 {
+# 			 "id": 123,
+# 			 "title": "video card",
+# 			 "image": {
+# 				"src": "https://proprikol.ru/wp-content/uploads/2020/12/kartinki-ryabchiki-14.jpg",
+# 				 "alt": "Image alt string"
+# 			 },
+# 			 "subcategories": [
+# 				 {
+# 					 "id": 123,
+# 					 "title": "video card",
+# 					 "image": {
+# 							"src": "https://proprikol.ru/wp-content/uploads/2020/12/kartinki-ryabchiki-14.jpg",
+# 						 	"alt": "Image alt string"
+# 					 }
+# 				 }
+# 			 ]
+# 		 }
+# 	 ]
+# 	return JsonResponse(data, safe=False)
+
+
+class CategoryView(ListModelMixin, GenericAPIView):
+	serializer_class = CategorySerializer
+	queryset = Category.objects.filter(parent=None).all()
+
+	def get(self, request):
+		return self.list(request)
 
 
 def catalog(request):

@@ -1,29 +1,48 @@
+
+
 from django.contrib.auth.models import User
 from django.db import models
 
 
-class Image(models.Model):
-    image = models.ImageField()
+# TODO объеденить в одну функцию
+def get_avatar_path(instance: 'Profile', filename: str) -> str:
+    return 'image/avatar/{username}/{filename}'.format(
+        username=instance.user.username,
+        filename=filename)
+
+
+def get_cat_path(instance, filename) -> str:
+    return 'image/category/{title}/{filename}'.format(
+        title=instance.title,
+        filename=filename)
+
+
+def get_product_path(instance, filename) -> str:
+    return 'image/product/{title}/{filename}'.format(
+        title=instance.title,
+        filename=filename)
 
 
 class Profile(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE)
     phone = models.CharField(max_length=15, null=True)
-    avatar = models.ForeignKey(Image, on_delete=models.PROTECT, related_name='avatar')
-
-
-class Subcategory(models.Model):
-    title = models.CharField(max_length=100)
-    image = models.ForeignKey(Image, on_delete=models.PROTECT, related_name='image_subcat')
+    avatar = models.ImageField(null=True, blank=True, upload_to=get_avatar_path)
 
     def __str__(self):
-        return self.title
+        return self.user.username + '_profile'
 
 
 class Category(models.Model):
     title = models.CharField(max_length=100)
-    image = models.ForeignKey(Image, on_delete=models.PROTECT, related_name='image_cat')
-    subcategories = models.ForeignKey(Subcategory, on_delete=models.PROTECT, related_name='subcategories')
+    image = models.ImageField(null=True, blank=True, upload_to=get_cat_path)
+    parent = models.ForeignKey(
+        'self', on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='subcategories')
+
+    class Meta:
+        verbose_name_plural = 'categories'
 
     def __str__(self):
         return self.title
@@ -38,7 +57,7 @@ class Tag(models.Model):
 
 class Review(models.Model):
     author = models.ForeignKey(User, on_delete=models.CASCADE, related_name='author')
-    text = models.TextField(null=True)
+    text = models.TextField(null=True, blank=True)
     rate = models.IntegerField(default=0)
     date = models.DateField(auto_now_add=True)
 
@@ -49,18 +68,18 @@ class Specification(models.Model):
 
 
 class Product(models.Model):
-    category = models.ForeignKey(Subcategory, on_delete=models.PROTECT, related_name='category')
+    category = models.ForeignKey(Category, on_delete=models.PROTECT)
     price = models.FloatField(default=0)
     count = models.IntegerField(default=0)
     date = models.DateField(auto_now_add=True)
     title = models.CharField(max_length=100)
     free_delivery = models.BooleanField(default=False)
-    images = models.ForeignKey(Image, on_delete=models.PROTECT, related_name='images_prod')
-    tags = models.ForeignKey(Tag, on_delete=models.PROTECT, related_name='tags')
-    reviews = models.ForeignKey(Review, on_delete=models.PROTECT, related_name='reviews')
+    images = models.ImageField(null=True, blank=True, upload_to=get_product_path)
+    tags = models.ForeignKey(Tag, on_delete=models.PROTECT, related_name='tags', null=True, blank=True)
+    reviews = models.ForeignKey(Review, on_delete=models.PROTECT, related_name='reviews', null=True, blank=True)
     rating = models.FloatField(default=0)
-    full_description = models.TextField(null=True)
-    specifications = models.ManyToManyField(Specification, related_name='specifications')
+    full_description = models.TextField(null=True, blank=True)
+    specifications = models.ManyToManyField(Specification, related_name='specifications', null=True, blank=True)
 
     def description(self):
         if len(str(self.full_description)) > 50:

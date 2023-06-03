@@ -1,11 +1,33 @@
 from django.contrib import admin
 
-from .models import Profile
+from .models import (
+    Profile,
+    Category,
+    Tag,
+    Review,
+    Specification,
+    Sale,
+    Product
+)
 
 
 # Register your models here.
+@admin.register(Profile)
 class ProfileAdmin(admin.ModelAdmin):
-    fields = 'user', 'phone', 'avatar'
+    list_display = 'id', 'user', 'phone', 'avatar'
 
 
-admin.site.register(Profile, ProfileAdmin)
+@admin.register(Category)
+class CategoryAdmin(admin.ModelAdmin):
+    list_display = 'id', 'title', 'image', 'parent'
+
+
+@admin.register(Product)
+class ProductAdmin(admin.ModelAdmin):
+    list_display = 'id', 'title', 'category', 'price', 'count', 'free_delivery'
+
+
+admin.site.register(Tag, admin.ModelAdmin)
+admin.site.register(Review, admin.ModelAdmin)
+admin.site.register(Specification, admin.ModelAdmin)
+
