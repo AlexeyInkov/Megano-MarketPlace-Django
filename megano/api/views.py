@@ -5,14 +5,17 @@ import json
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth import get_user_model
 from django.http import HttpResponse
-from rest_framework.generics import GenericAPIView
-from rest_framework.mixins import ListModelMixin
+from rest_framework.generics import GenericAPIView, RetrieveAPIView
+from rest_framework.mixins import ListModelMixin, RetrieveModelMixin, CreateModelMixin
 from rest_framework.pagination import PageNumberPagination
 
-from .models import Category, Product, Tag
+from .models import Category, Product, Tag, Review
 from .serializers import (
-	CategorySerializer,
-	CatalogSerializer, TagSerializer
+	CatalogItem,
+	TagSerializer,
+	ProductShort,
+	ReviewSerializer,
+	ProductFull
 )
 
 User = get_user_model()
@@ -45,45 +48,11 @@ def banners(request):
 
 
 class CategoryView(ListModelMixin, GenericAPIView):
-	serializer_class = CategorySerializer
+	serializer_class = CatalogItem
 	queryset = Category.objects.filter(parent=None).select_related('image')
 
 	def get(self, request):
 		return self.list(request)
-
-
-# def catalog(request):
-# 	data = {
-# 		 "items": [
-# 				 {
-# 					 "id": 123,
-# 					 "category": 123,
-# 					 "price": 500.67,
-# 					 "count": 12,
-# 					 "date": "Thu Feb 09 2023 21:39:52 GMT+0100 (Central European Standard Time)",
-# 					 "title": "video card",
-# 					 "description": "description of the product",
-# 					 "freeDelivery": True,
-# 					 "images": [
-# 					 		{
-# 					 			"src": "https://proprikol.ru/wp-content/uploads/2020/12/kartinki-ryabchiki-14.jpg",
-# 					 			"alt": "hello alt",
-# 							}
-# 					 ],
-# 					 "tags": [
-# 					 		{
-# 					 			"id": 0,
-# 					 			"name": "Hello world"
-# 					 		}
-# 					 ],
-# 					 "reviews": 5,
-# 					 "rating": 4.6
-# 				 }
-# 		 ],
-# 		 "currentPage": randrange(1, 4),
-# 		 "lastPage": 3
-# 	 }
-# 	return JsonResponse(data)
 
 
 # class CatalogPagination(PageNumberPagination):
@@ -94,7 +63,8 @@ class CategoryView(ListModelMixin, GenericAPIView):
 
 
 class CatalogView(ListModelMixin, GenericAPIView):
-	serializer_class = CatalogSerializer
+	serializer_class = ProductShort
+
 	#pagination_class = CatalogPagination
 	queryset = Product.objects.all()
 	# def get_queryset(self):  # TODO сделать фильтрацию
@@ -116,13 +86,13 @@ class CatalogView(ListModelMixin, GenericAPIView):
 	# 	return queryset
 
 	def get(self, request):
-		response = {
-			"items": self.list(request).data,
-			"currentPage": 1,
-			"lastPage": 1
-		}
-		return JsonResponse(response)
-		# return self.list(request)
+		return JsonResponse(
+			{
+				"items": self.list(request).data,
+				"currentPage": 1,
+				"lastPage": 3
+			}
+		)
 
 
 def productsPopular(request):
@@ -420,13 +390,11 @@ def product(request, id):
 	}
 	return JsonResponse(data)
 
-# def tags(request):
-# 	data = [
-# 		{ "id": 0, "name": 'tag0' },
-# 		{ "id": 1, "name": 'tag1' },
-# 		{ "id": 2, "name": 'tag2' },
-# 	]
-# 	return JsonResponse(data, safe=False)
+
+class ProductView(RetrieveAPIView):  #TODO add Reviews
+	serializer_class = ProductFull
+	queryset = Product.objects.all()
+	lookup_field = 'id'
 
 
 class TagsView(ListModelMixin, GenericAPIView):
@@ -437,24 +405,36 @@ class TagsView(ListModelMixin, GenericAPIView):
 		return self.list(request)
 
 
-def productReviews(request, id):
-	data = [
-    {
-      "author": "Annoying Orange",
-      "email": "no-reply@mail.ru",
-      "text": "rewrewrwerewrwerwerewrwerwer",
-      "rate": 4,
-      "date": "2023-05-05 12:12"
-    },
-    {
-      "author": "2Annoying Orange",
-      "email": "no-reply@mail.ru",
-      "text": "rewrewrwerewrwerwerewrwerwer",
-      "rate": 5,
-      "date": "2023-05-05 12:12"
-    },
-	]
-	return JsonResponse(data, safe=False)
+# def productReviews(request, id):
+# 	data = [
+#     {
+#       "author": "Annoying Orange",
+#       "email": "no-reply@mail.ru",
+#       "text": "rewrewrwerewrwerwerewrwerwer",
+#       "rate": 4,
+#       "date": "2023-05-05 12:12"
+#     },
+#     {
+#       "author": "2Annoying Orange",
+#       "email": "no-reply@mail.ru",
+#       "text": "rewrewrwerewrwerwerewrwerwer",
+#       "rate": 5,
+#       "date": "2023-05-05 12:12"
+#     },
+# 	]
+# 	return JsonResponse(data, safe=False)
+
+
+class ReviewView(ListModelMixin, CreateModelMixin, GenericAPIView):
+	serializer_class = ReviewSerializer
+	queryset = Review.objects.select_related('product')
+
+	def get(self, request):
+		return self.list(request)
+
+	def post(self, request):
+		return self.create(request)
+
 
 def profile(request):
 	if(request.method == 'GET'):

@@ -1,18 +1,99 @@
+from django.contrib.auth.models import User
 from rest_framework import serializers
-from .models import Category, Product, Tag
+from .models import Category, Product, Tag, Image, Sale, Review, Profile, Specification
 
 
-class CategorySerializer(serializers.ModelSerializer):
+class ImageSerializer(serializers.ModelSerializer):
     class Meta:
-        model = Category
-        fields = 'id', 'title', 'image', 'subcategories'
-        depth = 2
+        model = Image
+        fields = ['src', 'alt']
 
 
-class CatalogSerializer(serializers.ModelSerializer):
+class TagSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Tag
+        fields = 'id', 'name'
+
+
+class UserSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = 'fullname', 'email'
+
+
+class ProfileSerializer(serializers.ModelSerializer):
+    avatar = ImageSerializer(many=False, required=False)
+    user = UserSerializer(many=False, required=False)
+
+    class Meta:
+        model = Profile
+        fields = 'phone'
+
+
+# Order
+
+
+class SpecificationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Specification
+        fields = ['name', 'value']
+
+
+class ReviewSerializer(serializers.ModelSerializer):
+    author = UserSerializer(many=False, required=False)
+
+    class Meta:
+        model = Review
+        fields = ['id', 'author', 'text', 'rate', 'date', 'product']
+
+
+class ProductFull(serializers.ModelSerializer):
+    images = ImageSerializer(many=True, required=False)
+    tags = TagSerializer(many=True, required=False)
+    reviews = ReviewSerializer(many=True, required=False)
+    specifications = SpecificationSerializer(many=True, required=False)
+
     class Meta:
         model = Product
-        fields = (
+        fields = [
+            'id',
+            'category',
+            'price',
+            'count',
+            'date',
+            'title',
+            'description',
+            'fullDescription',
+            'freeDelivery',
+            'images',
+            'tags',
+            'reviews',
+            'specifications',
+            'rating'
+        ]
+
+
+class SaleItem(serializers.ModelSerializer):
+    image = ImageSerializer(many=False, required=False)
+    class Meta:
+        model = Sale
+        fields = [
+            'id',
+            'price',
+            'salePrice',
+            'dateFrom',
+            'dateTo',
+            'title',
+        ]
+
+
+class ProductShort(serializers.ModelSerializer):
+    images = ImageSerializer(many=True, required=False)
+    tags = TagSerializer(many=True, required=False)
+
+    class Meta:
+        model = Product
+        fields = [
             'id',
             'category',
             'price',
@@ -25,11 +106,30 @@ class CatalogSerializer(serializers.ModelSerializer):
             'tags',
             'reviews',
             'rating'
-        )
-        # depth = 1
+        ]
 
 
-class TagSerializer(serializers.ModelSerializer):
+class Sales(serializers.ModelSerializer):
+    items = SaleItem(many=True)
+
     class Meta:
-        model = Tag
-        fields = 'id', 'name'
+        fields = 'items'
+
+
+class Products(serializers.ModelSerializer):
+    items = ProductShort(many=True)
+
+    class Meta:
+        fields = 'items'
+
+
+class CatalogItem(serializers.ModelSerializer):
+    class Meta:
+        model = Category
+        fields = 'id', 'title', 'image', 'subcategories'
+        depth = 2
+
+
+#  пока непонятно зачем
+class CatalogItems(serializers.Serializer):
+    items = CatalogItem()

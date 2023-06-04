@@ -70,6 +70,11 @@ class Product(models.Model):
     fullDescription = models.TextField(null=True, blank=True)
     specifications = models.ManyToManyField(Specification, related_name='products', default=[], blank=True)
 
+    def description(self):
+        if len(str(self.fullDescription)) > 50:
+            return str(self.fullDescription)[:50] + '...'
+        return self.fullDescription
+
     def rating(self):
         queryset = Review.objects.filter(product=self.pk)
         if len(queryset) == 0:
@@ -78,13 +83,7 @@ class Product(models.Model):
 
     def reviews(self):
         queryset = Review.objects.filter(product=self.pk)
-        count = len(queryset)
-        return count * 100 / 100
-
-    def description(self):
-        if len(str(self.fullDescription)) > 50:
-            return str(self.fullDescription)[:50] + '...'
-        return self.fullDescription
+        return len(queryset)
 
     def __str__(self):
         return self.title
