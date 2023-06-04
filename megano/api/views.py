@@ -7,10 +7,12 @@ from django.contrib.auth import get_user_model
 from django.http import HttpResponse
 from rest_framework.generics import GenericAPIView
 from rest_framework.mixins import ListModelMixin
+from rest_framework.pagination import PageNumberPagination
 
-from .models import Category
+from .models import Category, Product, Tag
 from .serializers import (
-	CategorySerializer
+	CategorySerializer,
+	CatalogSerializer, TagSerializer
 )
 
 User = get_user_model()
@@ -41,29 +43,6 @@ def banners(request):
 	]
 	return JsonResponse(data, safe=False)
 
-# def categories(request):
-# 	data = [
-# 		 {
-# 			 "id": 123,
-# 			 "title": "video card",
-# 			 "image": {
-# 				"src": "https://proprikol.ru/wp-content/uploads/2020/12/kartinki-ryabchiki-14.jpg",
-# 				 "alt": "Image alt string"
-# 			 },
-# 			 "subcategories": [
-# 				 {
-# 					 "id": 123,
-# 					 "title": "video card",
-# 					 "image": {
-# 							"src": "https://proprikol.ru/wp-content/uploads/2020/12/kartinki-ryabchiki-14.jpg",
-# 						 	"alt": "Image alt string"
-# 					 }
-# 				 }
-# 			 ]
-# 		 }
-# 	 ]
-# 	return JsonResponse(data, safe=False)
-
 
 class CategoryView(ListModelMixin, GenericAPIView):
 	serializer_class = CategorySerializer
@@ -73,38 +52,78 @@ class CategoryView(ListModelMixin, GenericAPIView):
 		return self.list(request)
 
 
-def catalog(request):
-	data = {
-		 "items": [
-				 {
-					 "id": 123,
-					 "category": 123,
-					 "price": 500.67,
-					 "count": 12,
-					 "date": "Thu Feb 09 2023 21:39:52 GMT+0100 (Central European Standard Time)",
-					 "title": "video card",
-					 "description": "description of the product",
-					 "freeDelivery": True,
-					 "images": [
-					 		{
-					 			"src": "https://proprikol.ru/wp-content/uploads/2020/12/kartinki-ryabchiki-14.jpg",
-					 			"alt": "hello alt",
-							}
-					 ],
-					 "tags": [
-					 		{
-					 			"id": 0,
-					 			"name": "Hello world"
-					 		}
-					 ],
-					 "reviews": 5,
-					 "rating": 4.6
-				 }
-		 ],
-		 "currentPage": randrange(1, 4),
-		 "lastPage": 3
-	 }
-	return JsonResponse(data)
+# def catalog(request):
+# 	data = {
+# 		 "items": [
+# 				 {
+# 					 "id": 123,
+# 					 "category": 123,
+# 					 "price": 500.67,
+# 					 "count": 12,
+# 					 "date": "Thu Feb 09 2023 21:39:52 GMT+0100 (Central European Standard Time)",
+# 					 "title": "video card",
+# 					 "description": "description of the product",
+# 					 "freeDelivery": True,
+# 					 "images": [
+# 					 		{
+# 					 			"src": "https://proprikol.ru/wp-content/uploads/2020/12/kartinki-ryabchiki-14.jpg",
+# 					 			"alt": "hello alt",
+# 							}
+# 					 ],
+# 					 "tags": [
+# 					 		{
+# 					 			"id": 0,
+# 					 			"name": "Hello world"
+# 					 		}
+# 					 ],
+# 					 "reviews": 5,
+# 					 "rating": 4.6
+# 				 }
+# 		 ],
+# 		 "currentPage": randrange(1, 4),
+# 		 "lastPage": 3
+# 	 }
+# 	return JsonResponse(data)
+
+
+# class CatalogPagination(PageNumberPagination):
+# 	page_size = 10
+# 	page_size_query_param = 'limit'
+# 	page_query_param = 'page'
+# 	max_page_size = 100
+
+
+class CatalogView(ListModelMixin, GenericAPIView):
+	serializer_class = CatalogSerializer
+	#pagination_class = CatalogPagination
+	queryset = Product.objects.all()
+	# def get_queryset(self):  # TODO сделать фильтрацию
+	# 	queryset = Product.objects.all()
+	# 	# book_name = self.request.query_params.get('name')
+	# 	# author_name = self.request.query_params.get('author')
+	# 	# page = self.request.query_params.get('page')
+	# 	# page_up = self.request.query_params.get('page_up')
+	# 	# page_down = self.request.query_params.get('page_down')
+	# 	# if author_name and book_name:
+	# 	# 	author_id = Author.objects.get(name=author_name)
+	# 	# 	queryset = queryset.filter(name=book_name, author=author_id)
+	# 	# elif page:
+	# 	# 	queryset = queryset.filter(count_page=page)
+	# 	# elif page_up:
+	# 	# 	queryset = queryset.filter(count_page__gt=int(page_up))
+	# 	# elif page_down:
+	# 	# 	queryset = queryset.filter(count_page__lt=page_down)
+	# 	return queryset
+
+	def get(self, request):
+		response = {
+			"items": self.list(request).data,
+			"currentPage": 1,
+			"lastPage": 1
+		}
+		return JsonResponse(response)
+		# return self.list(request)
+
 
 def productsPopular(request):
 	data = [
@@ -401,13 +420,22 @@ def product(request, id):
 	}
 	return JsonResponse(data)
 
-def tags(request):
-	data = [
-		{ "id": 0, "name": 'tag0' },
-		{ "id": 1, "name": 'tag1' },
-		{ "id": 2, "name": 'tag2' },
-	]
-	return JsonResponse(data, safe=False)
+# def tags(request):
+# 	data = [
+# 		{ "id": 0, "name": 'tag0' },
+# 		{ "id": 1, "name": 'tag1' },
+# 		{ "id": 2, "name": 'tag2' },
+# 	]
+# 	return JsonResponse(data, safe=False)
+
+
+class TagsView(ListModelMixin, GenericAPIView):
+	serializer_class = TagSerializer
+	queryset = Tag.objects.all()
+
+	def get(self, request):
+		return self.list(request)
+
 
 def productReviews(request, id):
 	data = [

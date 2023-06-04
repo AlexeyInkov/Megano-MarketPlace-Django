@@ -25,7 +25,7 @@ class CategoryAdmin(admin.ModelAdmin):
 
 @admin.register(Product)
 class ProductAdmin(admin.ModelAdmin):
-    list_display = 'id', 'title', 'category', 'price', 'count', 'free_delivery'
+    list_display = 'id', 'title', 'category', 'price', 'count', 'freeDelivery'
 
 
 admin.site.register(Tag, admin.ModelAdmin)

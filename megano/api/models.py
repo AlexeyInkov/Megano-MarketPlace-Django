@@ -50,36 +50,55 @@ class Tag(models.Model):
         return self.name
 
 
-class Review(models.Model):
-    author = models.ForeignKey(User, on_delete=models.CASCADE, related_name='author')
-    text = models.TextField(null=True, blank=True)
-    rate = models.IntegerField(default=0)
-    date = models.DateField(auto_now_add=True)
-
-
 class Specification(models.Model):
     name = models.CharField(max_length=100)
     value = models.CharField(max_length=100)
+
+    def __str__(self):
+        return ' = '.join([self.name, self.value])
 
 
 class Product(models.Model):
     category = models.ForeignKey(Category, on_delete=models.PROTECT)
     price = models.FloatField(default=0)
     count = models.IntegerField(default=0)
-    date = models.DateField(auto_now_add=True)
+    date = models.DateTimeField(auto_now_add=True)
     title = models.CharField(max_length=100)
-    free_delivery = models.BooleanField(default=False)
-    images = models.ForeignKey(Image, on_delete=models.CASCADE, null=True, blank=True, related_name='product')
-    tags = models.ForeignKey(Tag, on_delete=models.PROTECT, related_name='tags', null=True, blank=True)
-    reviews = models.ForeignKey(Review, on_delete=models.PROTECT, related_name='reviews', null=True, blank=True)
-    rating = models.FloatField(default=0)
-    full_description = models.TextField(null=True, blank=True)
-    specifications = models.ManyToManyField(Specification, related_name='specifications', null=True, blank=True)
+    freeDelivery = models.BooleanField(default=False)
+    images = models.ManyToManyField(Image, related_name='products', default=[])
+    tags = models.ManyToManyField(Tag, related_name='products', default=[], blank=True)
+    fullDescription = models.TextField(null=True, blank=True)
+    specifications = models.ManyToManyField(Specification, related_name='products', default=[], blank=True)
+
+    def rating(self):
+        queryset = Review.objects.filter(product=self.pk)
+        if len(queryset) == 0:
+            return None
+        return sum(review.rate for review in queryset) / len(queryset)
+
+    def reviews(self):
+        queryset = Review.objects.filter(product=self.pk)
+        count = len(queryset)
+        return count * 100 / 100
 
     def description(self):
-        if len(str(self.full_description)) > 50:
-            return str(self.full_description)[:50] + '...'
-        return self.full_description
+        if len(str(self.fullDescription)) > 50:
+            return str(self.fullDescription)[:50] + '...'
+        return self.fullDescription
+
+    def __str__(self):
+        return self.title
+
+
+class Review(models.Model):
+    author = models.ForeignKey(User, on_delete=models.CASCADE, related_name='reviews')
+    text = models.TextField(null=True, blank=True)
+    rate = models.IntegerField(default=0)
+    date = models.DateTimeField(auto_now_add=True)
+    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='reviews')
+
+    def __str__(self):
+        return self.product.title
 
 
 class Sale(models.Model):
