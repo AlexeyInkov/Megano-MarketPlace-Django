@@ -12,15 +12,17 @@ def get_image_path(instance, filename) -> str:
 
 class Image(models.Model):
     src = models.ImageField(upload_to=get_image_path)
-    alt = models.CharField(max_length=50)
+    alt = models.CharField(max_length=50, null=True, blank=True)
 
     def __str__(self):
         return self.alt
 
 
 class Profile(models.Model):
-    user = models.OneToOneField(User, on_delete=models.CASCADE)
-    phone = models.CharField(max_length=15, null=True)
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile')
+    fullName = models.CharField(max_length=50, null=True, blank=True)
+    email = models.CharField(max_length=50, null=True, blank=True)
+    phone = models.CharField(max_length=15, null=True, blank=True)
     avatar = models.ForeignKey(Image, on_delete=models.CASCADE, null=True, blank=True, related_name='avatar')
 
     def __str__(self):
@@ -90,7 +92,7 @@ class Product(models.Model):
 
 
 class Review(models.Model):
-    author = models.ForeignKey(User, on_delete=models.CASCADE, related_name='reviews')
+    author = models.CharField(max_length=50, null=True, blank=True)
     text = models.TextField(null=True, blank=True)
     rate = models.IntegerField(default=0)
     date = models.DateTimeField(auto_now_add=True)

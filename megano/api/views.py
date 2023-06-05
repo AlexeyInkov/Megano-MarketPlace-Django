@@ -1,3 +1,4 @@
+from django.contrib.auth.mixins import LoginRequiredMixin
 from django.shortcuts import render
 from django.http import JsonResponse
 from random import randrange
@@ -5,17 +6,20 @@ import json
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth import get_user_model
 from django.http import HttpResponse
-from rest_framework.generics import GenericAPIView, RetrieveAPIView
-from rest_framework.mixins import ListModelMixin, RetrieveModelMixin, CreateModelMixin
+from rest_framework import permissions
+from rest_framework.generics import GenericAPIView, RetrieveAPIView, CreateAPIView, RetrieveUpdateAPIView, UpdateAPIView
+from rest_framework.mixins import ListModelMixin, RetrieveModelMixin, CreateModelMixin, UpdateModelMixin
 from rest_framework.pagination import PageNumberPagination
+from rest_framework.response import Response
+from rest_framework.views import APIView
 
-from .models import Category, Product, Tag, Review
+from .models import Category, Product, Tag, Review, Profile, Image
 from .serializers import (
 	CatalogItem,
 	TagSerializer,
 	ProductShort,
 	ReviewSerializer,
-	ProductFull
+	ProductFull, ProfileSerializer, ImageSerializer
 )
 
 User = get_user_model()
@@ -348,50 +352,50 @@ def signOut(request):
 	logout(request)
 	return HttpResponse(status=200)
 
-def product(request, id):
-	data = {
-		"id": 123,
-		"category": 55,
-		"price": 500.67,
-		"count": 12,
-		"date": "Thu Feb 09 2023 21:39:52 GMT+0100 (Central European Standard Time)",
-		"title": "video card",
-		"description": "description of the product",
-		"fullDescription": "full description of the product",
-		"freeDelivery": True,
-		"images": [
-				{
-					"src": "https://proprikol.ru/wp-content/uploads/2020/12/kartinki-ryabchiki-14.jpg",
-					"alt": "hello alt",
-				}
-		 ],
-		 "tags": [
-				{
-					"id": 0,
-					"name": "Hello world"
-				}
-		 ],
-		"reviews": [
-			{
-				"author": "Annoying Orange",
-				"email": "no-reply@mail.ru",
-				"text": "rewrewrwerewrwerwerewrwerwer",
-				"rate": 4,
-				"date": "2023-05-05 12:12"
-			}
-		],
-		"specifications": [
-			{
-				"name": "Size",
-				"value": "XL"
-			}
-		],
-		"rating": 4.6
-	}
-	return JsonResponse(data)
+# def product(request, id):
+# 	data = {
+# 		"id": 123,
+# 		"category": 55,
+# 		"price": 500.67,
+# 		"count": 12,
+# 		"date": "Thu Feb 09 2023 21:39:52 GMT+0100 (Central European Standard Time)",
+# 		"title": "video card",
+# 		"description": "description of the product",
+# 		"fullDescription": "full description of the product",
+# 		"freeDelivery": True,
+# 		"images": [
+# 				{
+# 					"src": "https://proprikol.ru/wp-content/uploads/2020/12/kartinki-ryabchiki-14.jpg",
+# 					"alt": "hello alt",
+# 				}
+# 		 ],
+# 		 "tags": [
+# 				{
+# 					"id": 0,
+# 					"name": "Hello world"
+# 				}
+# 		 ],
+# 		"reviews": [
+# 			{
+# 				"author": "Annoying Orange",
+# 				"email": "no-reply@mail.ru",
+# 				"text": "rewrewrwerewrwerwerewrwerwer",
+# 				"rate": 4,
+# 				"date": "2023-05-05 12:12"
+# 			}
+# 		],
+# 		"specifications": [
+# 			{
+# 				"name": "Size",
+# 				"value": "XL"
+# 			}
+# 		],
+# 		"rating": 4.6
+# 	}
+# 	return JsonResponse(data)
 
 
-class ProductView(RetrieveAPIView):  #TODO add Reviews
+class ProductView(RetrieveAPIView):
 	serializer_class = ProductFull
 	queryset = Product.objects.all()
 	lookup_field = 'id'
@@ -425,43 +429,63 @@ class TagsView(ListModelMixin, GenericAPIView):
 # 	return JsonResponse(data, safe=False)
 
 
-class ReviewView(ListModelMixin, CreateModelMixin, GenericAPIView):
+class ReviewView(CreateAPIView):
 	serializer_class = ReviewSerializer
 	queryset = Review.objects.select_related('product')
 
-	def get(self, request):
-		return self.list(request)
 
-	def post(self, request):
-		return self.create(request)
+	def post(self, request, *args, **kwargs):
+		request.data['product'] = kwargs['id']
+		return self.create(request, *args, **kwargs)
 
 
-def profile(request):
-	if(request.method == 'GET'):
-		data = {
-			"fullName": "Annoying Orange",
-			"email": "no-reply@mail.ru",
-			"phone": "88002000600",
-			"avatar": {
-				"src": "https://proprikol.ru/wp-content/uploads/2020/12/kartinki-ryabchiki-14.jpg",
-				"alt": "hello alt",
-			}
-		}
-		return JsonResponse(data)
+class ProfileView(RetrieveAPIView):
+	serializer_class = ProfileSerializer
+	queryset = Profile.objects.select_related('user')
 
-	elif(request.method == 'POST'):
-		data = {
-			"fullName": "Annoying Green",
-			"email": "no-reply@mail.ru",
-			"phone": "88002000600",
-			"avatar": {
-				"src": "https://proprikol.ru/wp-content/uploads/2020/12/kartinki-ryabchiki-14.jpg",
-				"alt": "hello alt",
-			}
-		}
-		return JsonResponse(data)
+	def get_object(self):
+		return self.request.user.profile
 
-	return HttpResponse(status=500)
+	def get(self, request, *args, **kwargs):
+		return self.retrieve(request, *args, **kwargs)
+
+	def post(self, request, *args, **kwargs):
+		instance = self.get_object()
+		request.data['user'] = request.user.id
+		request.data['pk'] = instance.pk
+		print(request.data)
+		serializer = self.serializer_class(instance, data=request.data, partial=True)
+		if serializer.is_valid():
+			serializer.save()
+			return JsonResponse(serializer.data)
+
+
+
+	# if(request.method == 'GET'):
+	# 	data = {
+	# 		"fullName": "Annoying Orange",
+	# 		"email": "no-reply@mail.ru",
+	# 		"phone": "88002000600",
+	# 		"avatar": {
+	# 			"src": "https://proprikol.ru/wp-content/uploads/2020/12/kartinki-ryabchiki-14.jpg",
+	# 			"alt": "hello alt",
+	# 		}
+	# 	}
+	# 	return JsonResponse(data)
+	#
+	# elif(request.method == 'POST'):
+	# 	data = {
+	# 		"fullName": "Annoying Green",
+	# 		"email": "no-reply@mail.ru",
+	# 		"phone": "88002000600",
+	# 		"avatar": {
+	# 			"src": "https://proprikol.ru/wp-content/uploads/2020/12/kartinki-ryabchiki-14.jpg",
+	# 			"alt": "hello alt",
+	# 		}
+	# 	}
+	# 	return JsonResponse(data)
+	#
+	# return HttpResponse(status=500)
 
 def profilePassword(request):
 	return HttpResponse(status=200)
@@ -611,7 +635,31 @@ def payment(request, id):
 	print('qweqwewqeqwe', id)
 	return HttpResponse(status=200)
 
-def avatar(request):
-	if request.method == "POST":
-# 		print(request.FILES["avatar"])
-		return HttpResponse(status=200)
+
+# def avatar(request):
+# 	if request.method == "POST":
+# 		instance = Image.objects.get(pk=request.user.profile.avatar)
+# 		instance.src = request.FILES['avatar']
+# 		instance.save()
+# 		return JsonResponse(
+# 			ImageSerializer(instance).data)
+
+
+class AvatarView(CreateAPIView):
+	serializer_class = ImageSerializer
+	queryset = Image.objects.all()
+
+	def get_object(self):
+		return self.request.user.profile.avatar
+
+	def post(self, request, *args, **kwargs):
+		instance = self.get_object()
+		request.data['src'] = request.FILES['avatar']
+		request.data['alt'] = request.user.username
+		serializer = self.serializer_class(instance, data=request.data, partial=True)
+		if serializer.is_valid():
+			serializer.save()
+			return JsonResponse(serializer.data)
+
+
+

@@ -15,19 +15,12 @@ class TagSerializer(serializers.ModelSerializer):
         fields = 'id', 'name'
 
 
-class UserSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = User
-        fields = 'fullname', 'email'
-
-
 class ProfileSerializer(serializers.ModelSerializer):
     avatar = ImageSerializer(many=False, required=False)
-    user = UserSerializer(many=False, required=False)
 
     class Meta:
         model = Profile
-        fields = 'phone'
+        fields = 'id', 'fullName', 'email', 'phone', 'avatar', 'user'
 
 
 # Order
@@ -40,8 +33,6 @@ class SpecificationSerializer(serializers.ModelSerializer):
 
 
 class ReviewSerializer(serializers.ModelSerializer):
-    author = UserSerializer(many=False, required=False)
-
     class Meta:
         model = Review
         fields = ['id', 'author', 'text', 'rate', 'date', 'product']
