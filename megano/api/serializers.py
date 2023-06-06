@@ -70,6 +70,7 @@ class ProductFull(serializers.ModelSerializer):
 
 class SaleItem(serializers.ModelSerializer):
     image = ImageSerializer(many=False, required=False)
+
     class Meta:
         model = Sale
         fields = [

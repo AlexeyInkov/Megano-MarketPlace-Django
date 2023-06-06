@@ -61,63 +61,75 @@ class CategoryView(ListModelMixin, GenericAPIView):
 		return self.list(request)
 
 
-# class CatalogPagination(PageNumberPagination):
-# 	page_size = 10
-# 	page_size_query_param = 'limit'
-# 	page_query_param = 'page'
-# 	max_page_size = 100
+class CatalogPagination(PageNumberPagination):
+	page_size = 2
+	page_query_param = 'currentPage'
+	page_size_query_param = 'limit'
+	max_page_size = 100
 
 
-class CatalogView(ListModelMixin, GenericAPIView):
-	queryset = Product.objects.all()
+class CatalogView(ListModelMixin, GenericAPIView):  #TODO add filter category
 	serializer_class = ProductShort
+	pagination_class = CatalogPagination
 
-	#pagination_class = CatalogPagination
+	def get_order(self):
+		sort = self.request.query_params.get('sort')
+		if self.request.query_params.get('sortType') == 'inc':
+			return sort
+		return '-' + sort
 
 	filter_backends = [
 		OrderingFilter
 	]
-	ordering_fields = ['sold', 'price', 'reviews', 'date']
-# filter[name] =
-# filter[minPrice] = 0
-# filter[maxPrice] = 50000
-# filter[freeDelivery] = false
-# filter[available] = true
-# currentPage = 1
+	ordering_fields = [
+		get_order,
+	]
+
 # category = NaN
-# sort = price
-# sortType = inc
-# limit = 20
-	# def get_queryset(self):  # TODO сделать фильтрацию
-	# 	queryset = Product.objects.all()
-	# 	# book_name = self.request.query_params.get('name')
-	# 	# author_name = self.request.query_params.get('author')
-	# 	# page = self.request.query_params.get('page')
-	# 	# page_up = self.request.query_params.get('page_up')
-	# 	# page_down = self.request.query_params.get('page_down')
-	# 	# if author_name and book_name:
-	# 	# 	author_id = Author.objects.get(name=author_name)
-	# 	# 	queryset = queryset.filter(name=book_name, author=author_id)
-	# 	# elif page:
-	# 	# 	queryset = queryset.filter(count_page=page)
-	# 	# elif page_up:
-	# 	# 	queryset = queryset.filter(count_page__gt=int(page_up))
-	# 	# elif page_down:
-	# 	# 	queryset = queryset.filter(count_page__lt=page_down)
-	# 	return queryset
+
+	def get_queryset(self):
+		name = self.request.query_params.get('filter[name]')
+		minPrice = self.request.query_params.get('filter[minPrice]')
+		maxPrice = self.request.query_params.get('filter[maxPrice]')
+		freeDelivery = self.request.query_params.get('filter[freeDelivery]')
+		available = self.request.query_params.get('filter[available]')
+
+		sort = self.request.query_params.get('sort')
+		if self.request.query_params.get('sortType')  == 'dec':
+			sort = '-' + sort
+
+		category = self.request.query_params.get('category')
+		print('category', category)
+		queryset = Product.objects.prefetch_related('review').order_by(sort).all()
+		queryset = queryset.filter(price__range=(int(minPrice), int(maxPrice))).order_by(sort).all()
+		if name is not None:
+			queryset = queryset.filter(title__icontains=name)
+		if freeDelivery == 'true':
+			queryset = queryset.filter(freeDelivery=True)
+		if available == 'true':
+			queryset = queryset.filter(count__gt=0)
+		return queryset
+
+	def get_last_page(self):
+		lastPage = len(self.get_queryset()) // int(CatalogPagination.page_size)
+		if len(self.get_queryset()) % int(CatalogPagination.page_size) > 0:
+			lastPage += 1
+		return lastPage
 
 	def get(self, request):
+		currentPage = int(self.request.query_params.get('currentPage'))
+		lastPage = len(self.get_queryset()) / int(CatalogPagination.page_size)
 		return JsonResponse(
 			{
-				"items": self.list(request).data,
-				"currentPage": 1,
-				"lastPage": 3
+				"items": self.list(request).data['results'],
+				"currentPage": currentPage,
+				"lastPage": self.get_last_page()
 			}
 		)
 
 
 class ProductPopularView(ListModelMixin, GenericAPIView):
-	queryset = Product.objects.order_by('-sold').all()[:8]
+	queryset = Product.objects.order_by('-rating').all()[:8]
 	serializer_class = ProductShort
 
 	def get(self, request):
@@ -346,10 +358,14 @@ class ReviewView(CreateAPIView):
 	serializer_class = ReviewSerializer
 	queryset = Review.objects.select_related('product')
 
-
 	def post(self, request, *args, **kwargs):
 		request.data['product'] = kwargs['id']
-		return self.create(request, *args, **kwargs)
+		response = self.create(request, *args, **kwargs)
+		product = Product.objects.get(kwargs['id'])
+		product.rating = product.get_rating
+		product.reviews = product.get_reviews
+		product.save()
+		return response
 
 
 class ProfileView(RetrieveAPIView):

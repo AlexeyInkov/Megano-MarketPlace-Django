@@ -61,6 +61,7 @@ class Specification(models.Model):
 
 
 class Product(models.Model):
+
     category = models.ForeignKey(Category, on_delete=models.PROTECT)
     price = models.FloatField(default=0)
     count = models.IntegerField(default=0)
@@ -68,6 +69,8 @@ class Product(models.Model):
     title = models.CharField(max_length=100)
     freeDelivery = models.BooleanField(default=False)
     images = models.ManyToManyField(Image, related_name='products', default=[])
+    reviews = models.IntegerField(default=0)
+    rating = models.FloatField(default=0)
     tags = models.ManyToManyField(Tag, related_name='products', default=[], blank=True)
     fullDescription = models.TextField(null=True, blank=True)
     specifications = models.ManyToManyField(Specification, related_name='products', default=[], blank=True)
@@ -79,15 +82,22 @@ class Product(models.Model):
             return str(self.fullDescription)[:50] + '...'
         return self.fullDescription
 
-    def rating(self):
+    @property
+    def get_rating(self):
         queryset = Review.objects.filter(product=self.pk)
         if len(queryset) == 0:
-            return None
+            return 0
         return sum(review.rate for review in queryset) / len(queryset)
 
-    def reviews(self):
+    @property
+    def get_reviews(self):
         queryset = Review.objects.filter(product=self.pk)
         return len(queryset)
+
+    def save(self, *args, **kwargs):
+        self.rating = self.get_rating
+        self.reviews = self.get_reviews
+        super(Product, self).save(*args, **kwargs)
 
     def __str__(self):
         return self.title
