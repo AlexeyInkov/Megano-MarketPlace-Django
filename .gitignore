@@ -1,2 +1,9 @@
 
 .DS_Store
+/diploma-frontend_gitlab/
+*.sqlite3
+/.idea/
+/Archive/
+cd
+*.pdf
+/megano/uploads/
