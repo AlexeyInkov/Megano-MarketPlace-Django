@@ -16,11 +16,15 @@ class TagSerializer(serializers.ModelSerializer):
 
 
 class ProfileSerializer(serializers.ModelSerializer):
-    avatar = ImageSerializer(many=False, required=False)
+    avatar = ImageSerializer(many=False, required=False, read_only=True)
 
     class Meta:
         model = Profile
-        fields = 'id', 'fullName', 'email', 'phone', 'avatar', 'user'
+        fields = 'fullName', 'email', 'phone', 'avatar'
+
+    def update(self, instance, validated_data):
+        pass
+
 
 
 # Order
@@ -35,7 +39,7 @@ class SpecificationSerializer(serializers.ModelSerializer):
 class ReviewSerializer(serializers.ModelSerializer):
     class Meta:
         model = Review
-        fields = ['id', 'author', 'text', 'rate', 'date', 'product']
+        fields = ['author', 'text', 'rate', 'date']
 
 
 class ProductFull(serializers.ModelSerializer):

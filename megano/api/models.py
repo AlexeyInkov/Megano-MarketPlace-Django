@@ -71,6 +71,8 @@ class Product(models.Model):
     tags = models.ManyToManyField(Tag, related_name='products', default=[], blank=True)
     fullDescription = models.TextField(null=True, blank=True)
     specifications = models.ManyToManyField(Specification, related_name='products', default=[], blank=True)
+    sold = models.IntegerField(default=0)
+    limited_edition = models.BooleanField(default=False)
 
     def description(self):
         if len(str(self.fullDescription)) > 50:
@@ -96,7 +98,7 @@ class Review(models.Model):
     text = models.TextField(null=True, blank=True)
     rate = models.IntegerField(default=0)
     date = models.DateTimeField(auto_now_add=True)
-    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='reviews')
+    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='review')
 
     def __str__(self):
         return self.product.title

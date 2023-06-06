@@ -4,9 +4,9 @@ from api import views
 urlpatterns = [
     path('banners', views.banners),
     path('categories', views.CategoryView.as_view()),  # categories), DONE
-    path('catalog', views.CatalogView.as_view()),  # catalog), DONE
-    path('products/popular', views.productsPopular),
-    path('products/limited', views.productsLimited),
+    path('catalog', views.CatalogView.as_view()),  # catalog), DONE?
+    path('products/popular', views.ProductPopularView.as_view()),  # productsPopular),
+    path('products/limited', views.ProductLimitedView.as_view()),  # productsLimited), DONE
     path('sales', views.sales),
     path('basket', views.basket),
     path('orders', views.orders),
