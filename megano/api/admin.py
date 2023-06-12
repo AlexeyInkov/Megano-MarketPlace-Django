@@ -8,7 +8,7 @@ from .models import (
     Review,
     Specification,
     Sale,
-    Product
+    Product, Basket
 )
 
 
@@ -28,8 +28,14 @@ class ProductAdmin(admin.ModelAdmin):
     list_display = 'id', 'title', 'category', 'price', 'count', 'freeDelivery'
 
 
+@admin.register(Sale)
+class SaleAdmin(admin.ModelAdmin):
+    list_display = 'id', 'product', 'salePrice', 'dateFrom', 'dateTo'
+
+
 admin.site.register(Tag, admin.ModelAdmin)
 admin.site.register(Image, admin.ModelAdmin)
 admin.site.register(Review, admin.ModelAdmin)
 admin.site.register(Specification, admin.ModelAdmin)
+admin.site.register(Basket, admin.ModelAdmin)
 

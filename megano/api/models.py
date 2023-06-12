@@ -1,4 +1,7 @@
-
+"""
+TODO
+настроить формат дат
+"""
 
 from django.contrib.auth.models import User
 from django.db import models
@@ -21,7 +24,7 @@ class Image(models.Model):
 class Profile(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile')
     fullName = models.CharField(max_length=50, null=True, blank=True)
-    email = models.CharField(max_length=50, null=True, blank=True)
+    email = models.EmailField(max_length=50, null=True, blank=True)
     phone = models.CharField(max_length=15, null=True, blank=True)
     avatar = models.ForeignKey(Image, on_delete=models.CASCADE, null=True, blank=True, related_name='avatar')
 
@@ -69,7 +72,6 @@ class Product(models.Model):
     title = models.CharField(max_length=100)
     freeDelivery = models.BooleanField(default=False)
     images = models.ManyToManyField(Image, related_name='products', default=[])
-    reviews = models.IntegerField(default=0)
     rating = models.FloatField(default=0)
     tags = models.ManyToManyField(Tag, related_name='products', default=[], blank=True)
     fullDescription = models.TextField(null=True, blank=True)
@@ -89,14 +91,12 @@ class Product(models.Model):
             return 0
         return sum(review.rate for review in queryset) / len(queryset)
 
-    @property
-    def get_reviews(self):
-        queryset = Review.objects.filter(product=self.pk)
-        return len(queryset)
+    # def reviews(self):
+    #     queryset = Review.objects.filter(product=self.pk)
+    #     return len(queryset)
 
-    def save(self, *args, **kwargs):
+    def __call__(self, *args, **kwargs):
         self.rating = self.get_rating
-        self.reviews = self.get_reviews
         super(Product, self).save(*args, **kwargs)
 
     def __str__(self):
@@ -108,27 +108,23 @@ class Review(models.Model):
     text = models.TextField(null=True, blank=True)
     rate = models.IntegerField(default=0)
     date = models.DateTimeField(auto_now_add=True)
-    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='review')
+    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='reviews')
 
     def __str__(self):
         return self.product.title
 
 
 class Sale(models.Model):
-    product = models.ForeignKey(Product, on_delete=models.CASCADE)
-    sale_price = models.FloatField(default=0)
+    product = models.ForeignKey(Product, on_delete=models.PROTECT, related_name='sale')
+    salePrice = models.FloatField(default=0)
     dateFrom = models.DateField()
     dateTo = models.DateField()
 
 
-class ProductOrder(models.Model):
-    product = models.ForeignKey(Product, on_delete=models.PROTECT, related_name='product')
-    price = models.FloatField(default=0)
+class Basket(models.Model):
+    user = models.ForeignKey(Profile,on_delete=models.CASCADE)
+    product = models.ForeignKey(Product, on_delete=models.PROTECT, related_name='basket')
     count = models.IntegerField(default=0)
-
-
-class Basket(models.Model):  # Возможно придется подумать
-    products = models.ManyToManyField(ProductOrder, related_name='baskets')
 
 
 class Order(models.Model):
@@ -140,4 +136,4 @@ class Order(models.Model):
     status = models.CharField(max_length=100)
     city = models.CharField(max_length=100)
     address = models.CharField(max_length=250)
-    products = models.ManyToManyField(ProductOrder, related_name='orders')
+    products = models.ManyToManyField(Product, related_name='orders')

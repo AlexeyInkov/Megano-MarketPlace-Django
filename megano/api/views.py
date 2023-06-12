@@ -1,4 +1,10 @@
-from django.contrib.auth.mixins import LoginRequiredMixin
+"""
+TODO
+настроить разрешения
+"""
+
+import random
+
 from django.shortcuts import render
 from django.http import JsonResponse
 from random import randrange
@@ -8,69 +14,61 @@ from django.contrib.auth import get_user_model
 from django.http import HttpResponse
 from rest_framework import permissions
 from rest_framework.filters import SearchFilter, OrderingFilter
-from rest_framework.generics import GenericAPIView, RetrieveAPIView, CreateAPIView, RetrieveUpdateAPIView, UpdateAPIView
-from rest_framework.mixins import ListModelMixin, RetrieveModelMixin, CreateModelMixin, UpdateModelMixin
+from rest_framework.generics import GenericAPIView, RetrieveAPIView, CreateAPIView, RetrieveUpdateAPIView, ListAPIView
+from rest_framework.mixins import ListModelMixin, CreateModelMixin, DestroyModelMixin
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
-from rest_framework.views import APIView
-from rest_framework.viewsets import ModelViewSet
 
-from .models import Category, Product, Tag, Review, Profile, Image
+
+from .models import (
+	Category,
+	Product,
+	Tag,
+	Review,
+	Profile,
+	Image, Sale, Basket)
 from .serializers import (
-	CatalogItem,
+	CatalogSerializer,
 	TagSerializer,
-	ProductShort,
+	ProductShortSerializer,
 	ReviewSerializer,
-	ProductFull, ProfileSerializer, ImageSerializer
+	ProductFullSerializer,
+	ProfileSerializer,
+	ImageSerializer,
+	SaleSerializer,
+	BasketSerializer
 )
 
 User = get_user_model()
 
-def banners(request):
-	data = [
-		{
-			"id": "123",
-			"category": 55,
-			"price": 500.67,
-			"count": 12,
-			"date": "Thu Feb 09 2023 21:39:52 GMT+0100 (Central European Standard Time)",
-			"title": "video card",
-			"description": "description of the product",
-			"freeDelivery": True,
-			"images": [
-				{
-					"src": "https://proprikol.ru/wp-content/uploads/2020/12/kartinki-ryabchiki-14.jpg",
-					"alt": "any alt text",
-				}
-			],
-			"tags": [
-				"string"
-			],
-			"reviews": 5,
-			"rating": 4.6
-		},
-	]
-	return JsonResponse(data, safe=False)
+
+class BannersView(ListAPIView):
+	serializer_class = ProductShortSerializer
+
+	def get_queryset(self):
+		queryset = Product.objects.all()
+		rnd = random.randint(1, len(queryset))
+		return queryset[(rnd - 1):rnd]
 
 
 class CategoryView(ListModelMixin, GenericAPIView):
-	serializer_class = CatalogItem
+	serializer_class = CatalogSerializer
 	queryset = Category.objects.filter(parent=None).select_related('image')
 
 	def get(self, request):
 		return self.list(request)
 
 
-class CatalogPagination(PageNumberPagination):
-	page_size = 2
+class Pagination(PageNumberPagination):
+	page_size = 20
 	page_query_param = 'currentPage'
 	page_size_query_param = 'limit'
 	max_page_size = 100
 
 
-class CatalogView(ListModelMixin, GenericAPIView):  #TODO add filter category
-	serializer_class = ProductShort
-	pagination_class = CatalogPagination
+class CatalogView(ListModelMixin, GenericAPIView):
+	serializer_class = ProductShortSerializer
+	pagination_class = Pagination
 
 	def get_order(self):
 		sort = self.request.query_params.get('sort')
@@ -85,44 +83,50 @@ class CatalogView(ListModelMixin, GenericAPIView):  #TODO add filter category
 		get_order,
 	]
 
-# category = NaN
-
 	def get_queryset(self):
 		name = self.request.query_params.get('filter[name]')
 		minPrice = self.request.query_params.get('filter[minPrice]')
 		maxPrice = self.request.query_params.get('filter[maxPrice]')
 		freeDelivery = self.request.query_params.get('filter[freeDelivery]')
 		available = self.request.query_params.get('filter[available]')
+		category = self.request.query_params.get('category')
 
 		sort = self.request.query_params.get('sort')
-		if self.request.query_params.get('sortType')  == 'dec':
+		if self.request.query_params.get('sortType') == 'dec':
 			sort = '-' + sort
 
-		category = self.request.query_params.get('category')
-		print('category', category)
-		queryset = Product.objects.prefetch_related('review').order_by(sort).all()
+		queryset = (
+			Product.objects
+			.prefetch_related('images')
+			.prefetch_related('tags')
+			.prefetch_related('reviews')
+			.order_by(sort)
+		)
+
 		queryset = queryset.filter(price__range=(int(minPrice), int(maxPrice))).order_by(sort).all()
+
+		if category is not None:
+			queryset = queryset.filter(category=category)
 		if name is not None:
 			queryset = queryset.filter(title__icontains=name)
 		if freeDelivery == 'true':
 			queryset = queryset.filter(freeDelivery=True)
 		if available == 'true':
 			queryset = queryset.filter(count__gt=0)
+		print(queryset)
 		return queryset
 
 	def get_last_page(self):
-		lastPage = len(self.get_queryset()) // int(CatalogPagination.page_size)
-		if len(self.get_queryset()) % int(CatalogPagination.page_size) > 0:
+		lastPage = len(self.get_queryset()) // int(Pagination.page_size)
+		if len(self.get_queryset()) % int(Pagination.page_size) > 0:
 			lastPage += 1
 		return lastPage
 
 	def get(self, request):
-		currentPage = int(self.request.query_params.get('currentPage'))
-		lastPage = len(self.get_queryset()) / int(CatalogPagination.page_size)
 		return JsonResponse(
 			{
 				"items": self.list(request).data['results'],
-				"currentPage": currentPage,
+				"currentPage": int(self.request.query_params.get('currentPage')),
 				"lastPage": self.get_last_page()
 			}
 		)
@@ -130,7 +134,7 @@ class CatalogView(ListModelMixin, GenericAPIView):  #TODO add filter category
 
 class ProductPopularView(ListModelMixin, GenericAPIView):
 	queryset = Product.objects.order_by('-rating').all()[:8]
-	serializer_class = ProductShort
+	serializer_class = ProductShortSerializer
 
 	def get(self, request):
 		return self.list(request)
@@ -138,125 +142,76 @@ class ProductPopularView(ListModelMixin, GenericAPIView):
 
 class ProductLimitedView(ListModelMixin, GenericAPIView):
 	queryset = Product.objects.filter(limited_edition=True).all()[:16]
-	serializer_class = ProductShort
+	serializer_class = ProductShortSerializer
 
 	def get(self, request):
 		return self.list(request)
 
 
-def sales(request):
-	data = {
-		'items': [
+class SalesView(ListModelMixin, GenericAPIView):
+	serializer_class = SaleSerializer
+	pagination_class = Pagination
+
+	def get_queryset(self):
+		queryset = (
+			Sale.objects
+			.select_related('product')
+		)
+		return queryset
+
+	def get_last_page(self):
+		lastPage = len(self.get_queryset()) // int(Pagination.page_size)
+		if len(self.get_queryset()) % int(Pagination.page_size) > 0:
+			lastPage += 1
+		return lastPage
+
+	def get(self, request):
+		items = self.list(request).data['results']
+		for item in items:
+			item.update(item.pop('product'))
+
+		return JsonResponse(
 			{
-				"id": 123,
-				"price": 500.67,
-				"salePrice": 200.67,
-				"dateFrom": "05-08",
-				"dateTo": "05-20",
-				"title": "video card",
-				"images": [
-						{
-							"src": "https://proprikol.ru/wp-content/uploads/2020/12/kartinki-ryabchiki-14.jpg",
-							"alt": "hello alt",
-						}
-				 ],
+				"items": items,
+				"currentPage": int(self.request.query_params.get('currentPage')),
+				"lastPage": self.get_last_page()
 			}
-		],
-		'currentPage': randrange(1, 4),
-		'lastPage': 3,
-	}
-	return JsonResponse(data)
+		)
 
 
-def basket(request):
-	if request.method == "GET":
-		print('[GET] /api/basket/')
-		data = [
-			{
-				"id": 123,
-				"category": 55,
-				"price": 500.67,
-				"count": 12,
-				"date": "Thu Feb 09 2023 21:39:52 GMT+0100 (Central European Standard Time)",
-				"title": "video card",
-				"description": "description of the product",
-				"freeDelivery": True,
-				"images": [
-						{
-							"src": "https://proprikol.ru/wp-content/uploads/2020/12/kartinki-ryabchiki-14.jpg",
-							"alt": "hello alt",
-						}
-				 ],
-				 "tags": [
-						{
-							"id": 0,
-							"name": "Hello world"
-						}
-				 ],
-				"reviews": 5,
-				"rating": 4.6
-			},
-			{
-				"id": 124,
-				"category": 55,
-				"price": 201.675,
-				"count": 5,
-				"date": "Thu Feb 09 2023 21:39:52 GMT+0100 (Central European Standard Time)",
-				"title": "video card",
-				"description": "description of the product",
-				"freeDelivery": True,
-				"images": [
-						{
-							"src": "https://proprikol.ru/wp-content/uploads/2020/12/kartinki-ryabchiki-14.jpg",
-							"alt": "hello alt",
-						}
-				 ],
-				 "tags": [
-						{
-							"id": 0,
-							"name": "Hello world"
-						}
-				 ],
-				"reviews": 5,
-				"rating": 4.6
-			}
-		]
+def get_user(request):
+	# if request.user.is_auntification:
+	# 	return request.user.pk
+	return 1
+
+
+class BasketView(CreateModelMixin, ListModelMixin, GenericAPIView):
+	serializer_class = BasketSerializer
+	queryset = (
+		Basket.objects
+		.select_related('product')
+		.select_related('user')
+		# .filter(user=get_user)
+	)
+
+	def get(self, request):
+		data = []
+		for item in self.list(request).data:
+			item["product"]['count'] = item['count']
+			data.append(item['product'])
 		return JsonResponse(data, safe=False)
 
-	elif (request.method == "POST"):
-		body = json.loads(request.body)
-		id = body['id']
-		count = body['count']
-		print('[POST] /api/basket/   |   id: {id}, count: {count}'.format(id=id, count=count))
-		data = [
-			{
-				"id": id,
-				"category": 55,
-				"price": 500.67,
-				"count": 13,
-				"date": "Thu Feb 09 2023 21:39:52 GMT+0100 (Central European Standard Time)",
-				"title": "video card",
-				"description": "description of the product",
-				"freeDelivery": True,
-				"images": [
-						{
-							"src": "https://proprikol.ru/wp-content/uploads/2020/12/kartinki-ryabchiki-14.jpg",
-							"alt": "hello alt",
-						}
-				 ],
-				 "tags": [
-						{
-							"id": 0,
-							"name": "Hello world"
-						}
-				 ],
-				"reviews": 5,
-				"rating": 4.6
-			}
-		]
-		return JsonResponse(data, safe=False)
+	def post(self, request):
+		request.data["user"] = request.user
+		# request.data["product"] = Product.objects.filter(id=request.data["id"])
+		product = ProductShortSerializer(Product.objects.filter(id=request.data["id"]))
+		# product.category = Product.objects.filter(id=request.data["id"]).)
 
-	elif (request.method == "DELETE"):
+		print(product.data)
+		request.data["product"] = product.data
+		return self.create(request)
+
+	def delete(self, request):
 		body = json.loads(request.body)
 		id = body['id']
 		print('[DELETE] /api/basket/')
@@ -330,10 +285,12 @@ def signIn(request):
 		else:
 			return HttpResponse(status=500)
 
+
 def signUp(request):
 	user = User.objects.create_user("mir232", "lennon@thebeatles.com", "pass232")
 	user.save()
 	return HttpResponse(status=200)
+
 
 def signOut(request):
 	logout(request)
@@ -341,8 +298,15 @@ def signOut(request):
 
 
 class ProductView(RetrieveAPIView):
-	serializer_class = ProductFull
-	queryset = Product.objects.all()
+	serializer_class = ProductFullSerializer
+	queryset = (
+		Product.objects
+		.prefetch_related('tags')
+		.prefetch_related('specifications')
+		.prefetch_related('images')
+		.prefetch_related('tags')
+		.prefetch_related('reviews')
+	)
 	lookup_field = 'id'
 
 
@@ -362,13 +326,11 @@ class ReviewView(CreateAPIView):
 		request.data['product'] = kwargs['id']
 		response = self.create(request, *args, **kwargs)
 		product = Product.objects.get(kwargs['id'])
-		product.rating = product.get_rating
-		product.reviews = product.get_reviews
 		product.save()
 		return response
 
 
-class ProfileView(RetrieveAPIView):
+class ProfileView(RetrieveUpdateAPIView):
 	serializer_class = ProfileSerializer
 	queryset = Profile.objects.select_related('user')
 
@@ -379,10 +341,8 @@ class ProfileView(RetrieveAPIView):
 		return self.retrieve(request, *args, **kwargs)
 
 	def post(self, request, *args, **kwargs):
-		request.data['user'] = request.user.id
-	# 	request.data['avatar'] = {}
-	# 	request.data['avatar']['src'] = request.user.profile.avatar.src
-		return Response(request, *args, **kwargs)
+		return self.update(request, *args, **kwargs)
+
 
 
 def profilePassword(request):
@@ -532,7 +492,6 @@ def order(request, id):
 def payment(request, id):
 	print('qweqwewqeqwe', id)
 	return HttpResponse(status=200)
-
 
 
 class AvatarView(CreateAPIView):
