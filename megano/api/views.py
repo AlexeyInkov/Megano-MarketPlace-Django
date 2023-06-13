@@ -14,8 +14,9 @@ from django.contrib.auth import get_user_model
 from django.http import HttpResponse
 from rest_framework import permissions
 from rest_framework.filters import SearchFilter, OrderingFilter
-from rest_framework.generics import GenericAPIView, RetrieveAPIView, CreateAPIView, RetrieveUpdateAPIView, ListAPIView
-from rest_framework.mixins import ListModelMixin, CreateModelMixin, DestroyModelMixin
+from rest_framework.generics import GenericAPIView, RetrieveAPIView, CreateAPIView, RetrieveUpdateAPIView, ListAPIView, \
+	UpdateAPIView
+from rest_framework.mixins import ListModelMixin, CreateModelMixin, DestroyModelMixin, UpdateModelMixin
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
 
@@ -36,7 +37,7 @@ from .serializers import (
 	ProfileSerializer,
 	ImageSerializer,
 	SaleSerializer,
-	BasketSerializer
+	BasketSerializer, AvatarSerializer
 )
 
 User = get_user_model()
@@ -197,18 +198,15 @@ class BasketView(CreateModelMixin, ListModelMixin, GenericAPIView):
 	def get(self, request):
 		data = []
 		for item in self.list(request).data:
+			item["product"] = ProductShortSerializer(instance=Product.objects.filter(id=item["product"])).data
 			item["product"]['count'] = item['count']
 			data.append(item['product'])
 		return JsonResponse(data, safe=False)
 
 	def post(self, request):
 		request.data["user"] = request.user
-		# request.data["product"] = Product.objects.filter(id=request.data["id"])
-		product = ProductShortSerializer(Product.objects.filter(id=request.data["id"]))
-		# product.category = Product.objects.filter(id=request.data["id"]).)
-
-		print(product.data)
-		request.data["product"] = product.data
+		request.data["product"] = request.data["id"]
+		print(request.data)
 		return self.create(request)
 
 	def delete(self, request):
@@ -494,18 +492,20 @@ def payment(request, id):
 	return HttpResponse(status=200)
 
 
-class AvatarView(CreateAPIView):
-	serializer_class = ImageSerializer
-	queryset = Image.objects.all()
+class AvatarView(UpdateModelMixin, GenericAPIView):
+	serializer_class = AvatarSerializer
+	queryset = Profile.objects.select_related("avatar")
 
 	def get_object(self):
-		return self.request.user.profile.avatar
+		return self.request.user.profile
 
 	def post(self, request, *args, **kwargs):
 		instance = self.get_object()
-		request.data['src'] = request.FILES['avatar']
-		request.data['alt'] = request.user.username
-		serializer = self.serializer_class(instance, data=request.data, partial=True)
+		data = {"avatar": {
+				"src": request.FILES["avatar"],
+				"alt": request.user.username + "_avatar"
+			}}
+		serializer = AvatarSerializer(instance=instance, data=data, partial=True)
 		if serializer.is_valid():
 			serializer.save()
 			return JsonResponse(serializer.data)

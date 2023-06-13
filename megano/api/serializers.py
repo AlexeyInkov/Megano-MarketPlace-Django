@@ -1,3 +1,8 @@
+"""
+TODO
+настроить формат дат
+"""
+
 from django.contrib.auth.models import User
 from rest_framework import serializers
 from .models import (
@@ -23,6 +28,21 @@ class TagSerializer(serializers.ModelSerializer):
     class Meta:
         model = Tag
         fields = 'id', 'name'
+
+
+class AvatarSerializer(serializers.ModelSerializer):
+    avatar = ImageSerializer()
+
+    class Meta:
+        model = Profile
+        fields = ['avatar']
+
+    def update(self, instance, validated_data):
+        avatar_data = validated_data.pop('avatar')
+        avatar = Image.objects.create(**avatar_data)
+        instance.avatar = avatar
+        instance.save()
+        return instance
 
 
 class ProfileSerializer(serializers.ModelSerializer):
@@ -160,7 +180,7 @@ class CatalogSerializer(serializers.ModelSerializer):
 
 class BasketSerializer(serializers.ModelSerializer):
     user = serializers.PrimaryKeyRelatedField(read_only=True)
-    product = ProductShortSerializer()
+
     class Meta:
         model = Basket
         fields = [
