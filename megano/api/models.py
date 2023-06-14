@@ -119,7 +119,7 @@ class Sale(models.Model):
 
 
 class Basket(models.Model):
-    user = models.ForeignKey(Profile,on_delete=models.CASCADE)
+    user = models.ForeignKey(Profile, on_delete=models.CASCADE, null=True)
     product = models.ForeignKey(Product, on_delete=models.PROTECT, related_name='basket')
     count = models.IntegerField(default=0)
 

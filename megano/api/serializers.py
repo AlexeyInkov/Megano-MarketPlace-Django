@@ -179,8 +179,6 @@ class CatalogSerializer(serializers.ModelSerializer):
 
 
 class BasketSerializer(serializers.ModelSerializer):
-    user = serializers.PrimaryKeyRelatedField(read_only=True)
-
     class Meta:
         model = Basket
         fields = [
@@ -189,5 +187,15 @@ class BasketSerializer(serializers.ModelSerializer):
             'count'
         ]
 
+    def create(self, validated_data):
+        basket = Basket.objects.create(**validated_data)
+        return basket
 
+    def update(self, instance, validated_data):
+        print(instance)
+        instance.user = validated_data.get('user', instance.user)
+        instance.product = validated_data.get('product', instance.product)
+        instance.count = validated_data.get('count', instance.count)
+        instance.save()
+        return instance
 

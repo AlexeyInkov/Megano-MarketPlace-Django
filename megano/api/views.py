@@ -198,48 +198,45 @@ class BasketView(CreateModelMixin, ListModelMixin, GenericAPIView):
 	def get(self, request):
 		data = []
 		for item in self.list(request).data:
-			item["product"] = ProductShortSerializer(instance=Product.objects.filter(id=item["product"])).data
+
+			item["product"] = ProductShortSerializer(instance=Product.objects.get(id=item["product"])).data
+			print(item["product"] )
 			item["product"]['count'] = item['count']
 			data.append(item['product'])
 		return JsonResponse(data, safe=False)
 
 	def post(self, request):
-		request.data["user"] = request.user
-		request.data["product"] = request.data["id"]
-		print(request.data)
+		user_pk = self.request.user.pk
+		product_pk = request.data["id"]
+		count = request.data["count"]
+		basket = Basket.objects.filter(user=user_pk, product=product_pk).first()
+		if basket:
+			data = {"count": basket.count + count}
+			serializer = BasketSerializer(instance=basket, data=data, partial=True)
+			if serializer.is_valid():
+				serializer.save()
+				return JsonResponse(serializer.data)
+		request.data["user"] = user_pk
+		request.data["product"] = product_pk
 		return self.create(request)
 
 	def delete(self, request):
-		body = json.loads(request.body)
-		id = body['id']
-		print('[DELETE] /api/basket/')
-		data = [
-			{
-			"id": id,
-			"category": 55,
-			"price": 500.67,
-			"count": 11,
-			"date": "Thu Feb 09 2023 21:39:52 GMT+0100 (Central European Standard Time)",
-			"title": "video card",
-			"description": "description of the product",
-			"freeDelivery": True,
-			"images": [
-					{
-						"src": "https://proprikol.ru/wp-content/uploads/2020/12/kartinki-ryabchiki-14.jpg",
-						"alt": "hello alt",
-					}
-			 ],
-			 "tags": [
-					{
-						"id": 0,
-						"name": "Hello world"
-					}
-			 ],
-			"reviews": 5,
-			"rating": 4.6
-			}
-		]
-		return JsonResponse(data, safe=False)
+		user_pk = self.request.user.pk
+		product_pk = request.data["id"]
+		count = request.data["count"]
+		basket = Basket.objects.filter(user=user_pk).get(product=product_pk)
+		if basket:
+			count = basket.count - count
+			if count == 0:
+				basket.delete()
+				return JsonResponse({})
+			data = {"count": count}
+			serializer = BasketSerializer(instance=basket, data=data, partial=True)
+			if serializer.is_valid():
+				serializer.save()
+
+				return JsonResponse(serializer.data)
+
 
 def orders(request):
 	if (request.method == "POST"):
