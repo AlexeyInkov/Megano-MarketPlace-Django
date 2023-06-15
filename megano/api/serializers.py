@@ -1,6 +1,20 @@
+"""
+TODO
+настроить формат дат
+"""
+
 from django.contrib.auth.models import User
 from rest_framework import serializers
-from .models import Category, Product, Tag, Image, Sale, Review, Profile, Specification
+from .models import (
+    Category,
+    Product,
+    Tag,
+    Image,
+    Sale,
+    Review,
+    Profile,
+    Specification,
+)
 
 
 class ImageSerializer(serializers.ModelSerializer):
@@ -15,19 +29,50 @@ class TagSerializer(serializers.ModelSerializer):
         fields = 'id', 'name'
 
 
-class ProfileSerializer(serializers.ModelSerializer):
-    avatar = ImageSerializer(many=False, required=False, read_only=True)
+class AvatarSerializer(serializers.ModelSerializer):
+    avatar = ImageSerializer()
 
     class Meta:
         model = Profile
-        fields = 'fullName', 'email', 'phone', 'avatar'
+        fields = ['avatar']
 
     def update(self, instance, validated_data):
-        pass
+        avatar_data = validated_data.pop('avatar')
+        avatar = Image.objects.create(**avatar_data)
+        instance.avatar = avatar
+        instance.save()
+        return instance
 
 
+class ProfileSerializer(serializers.ModelSerializer):
+    avatar = ImageSerializer(read_only=True)
 
-# Order
+
+    class Meta:
+        model = Profile
+        fields = 'user', 'fullName', 'email', 'phone', 'avatar'
+        read_only_fields =['user']
+
+    def update(self, instance, validated_data):
+        instance.fullName = validated_data.get('fullName', instance.fullName)
+        instance.email = validated_data.get('email', instance.email)
+        instance.phone = validated_data.get('phone', instance.phone)
+        instance.save()
+        return instance
+
+
+class UserSerializer(serializers.ModelSerializer):
+    profile = ProfileSerializer()
+
+    class Meta:
+        model = User
+        fields = ['username', 'profile']
+
+    def create(self, validated_data):
+        profile_data = validated_data.pop('profile')
+        user = User.objects.create(**validated_data)
+        Profile.objects.create(user=user, **profile_data)
+        return user
 
 
 class SpecificationSerializer(serializers.ModelSerializer):
@@ -39,10 +84,10 @@ class SpecificationSerializer(serializers.ModelSerializer):
 class ReviewSerializer(serializers.ModelSerializer):
     class Meta:
         model = Review
-        fields = ['author', 'text', 'rate', 'date']
+        fields = ['author', 'text', 'rate', 'date', 'product']
 
 
-class ProductFull(serializers.ModelSerializer):
+class ProductFullSerializer(serializers.ModelSerializer):
     images = ImageSerializer(many=True, required=False)
     tags = TagSerializer(many=True, required=False)
     reviews = ReviewSerializer(many=True, required=False)
@@ -68,23 +113,42 @@ class ProductFull(serializers.ModelSerializer):
         ]
 
 
-class SaleItem(serializers.ModelSerializer):
-    image = ImageSerializer(many=False, required=False)
+class ProductSaleSerializer(serializers.ModelSerializer):
+    images = ImageSerializer(many=True, required=False)
+
+    class Meta:
+        model = Product
+        fields = [
+            'price',
+            'title',
+            'images'
+        ]
+
+
+class SaleSerializer(serializers.ModelSerializer):
+    product = ProductSaleSerializer()
+    dateFrom = serializers.DateField(format='%m-%d')
+    dateTo = serializers.DateField(format='%m-%d')
+
     class Meta:
         model = Sale
         fields = [
             'id',
-            'price',
             'salePrice',
             'dateFrom',
             'dateTo',
-            'title',
+            'product',
+
         ]
 
 
-class ProductShort(serializers.ModelSerializer):
+class ProductShortSerializer(serializers.ModelSerializer):
+    def get_reviews(self, instance):
+        return len(Review.objects.filter(product=instance.pk))
+
     images = ImageSerializer(many=True, required=False)
     tags = TagSerializer(many=True, required=False)
+    reviews = serializers.SerializerMethodField(source=get_reviews)
 
     class Meta:
         model = Product
@@ -104,27 +168,10 @@ class ProductShort(serializers.ModelSerializer):
         ]
 
 
-class Sales(serializers.ModelSerializer):
-    items = SaleItem(many=True)
+class CatalogSerializer(serializers.ModelSerializer):
+    image = ImageSerializer()
 
-    class Meta:
-        fields = 'items'
-
-
-class Products(serializers.ModelSerializer):
-    items = ProductShort(many=True)
-
-    class Meta:
-        fields = 'items'
-
-
-class CatalogItem(serializers.ModelSerializer):
     class Meta:
         model = Category
         fields = 'id', 'title', 'image', 'subcategories'
         depth = 2
-
-
-#  пока непонятно зачем
-class CatalogItems(serializers.Serializer):
-    items = CatalogItem()

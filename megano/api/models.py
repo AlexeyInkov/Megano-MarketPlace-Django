@@ -21,7 +21,7 @@ class Image(models.Model):
 class Profile(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile')
     fullName = models.CharField(max_length=50, null=True, blank=True)
-    email = models.CharField(max_length=50, null=True, blank=True)
+    email = models.EmailField(max_length=50, null=True, blank=True)
     phone = models.CharField(max_length=15, null=True, blank=True)
     avatar = models.ForeignKey(Image, on_delete=models.CASCADE, null=True, blank=True, related_name='avatar')
 
@@ -61,13 +61,15 @@ class Specification(models.Model):
 
 
 class Product(models.Model):
+
     category = models.ForeignKey(Category, on_delete=models.PROTECT)
-    price = models.FloatField(default=0)
+    price = models.DecimalField(default=0, max_digits=10, decimal_places=2)
     count = models.IntegerField(default=0)
     date = models.DateTimeField(auto_now_add=True)
     title = models.CharField(max_length=100)
     freeDelivery = models.BooleanField(default=False)
     images = models.ManyToManyField(Image, related_name='products', default=[])
+    rating = models.FloatField(default=0)
     tags = models.ManyToManyField(Tag, related_name='products', default=[], blank=True)
     fullDescription = models.TextField(null=True, blank=True)
     specifications = models.ManyToManyField(Specification, related_name='products', default=[], blank=True)
@@ -79,15 +81,20 @@ class Product(models.Model):
             return str(self.fullDescription)[:50] + '...'
         return self.fullDescription
 
-    def rating(self):
+    @property
+    def get_rating(self):
         queryset = Review.objects.filter(product=self.pk)
         if len(queryset) == 0:
-            return None
+            return 0
         return sum(review.rate for review in queryset) / len(queryset)
 
-    def reviews(self):
-        queryset = Review.objects.filter(product=self.pk)
-        return len(queryset)
+    # def reviews(self):
+    #     queryset = Review.objects.filter(product=self.pk)
+    #     return len(queryset)
+
+    def __call__(self, *args, **kwargs):
+        self.rating = self.get_rating
+        super(Product, self).save(*args, **kwargs)
 
     def __str__(self):
         return self.title
@@ -98,27 +105,17 @@ class Review(models.Model):
     text = models.TextField(null=True, blank=True)
     rate = models.IntegerField(default=0)
     date = models.DateTimeField(auto_now_add=True)
-    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='review')
+    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='reviews')
 
     def __str__(self):
         return self.product.title
 
 
 class Sale(models.Model):
-    product = models.ForeignKey(Product, on_delete=models.CASCADE)
-    sale_price = models.FloatField(default=0)
+    product = models.ForeignKey(Product, on_delete=models.PROTECT, related_name='sale')
+    salePrice = models.FloatField(default=0)
     dateFrom = models.DateField()
     dateTo = models.DateField()
-
-
-class ProductOrder(models.Model):
-    product = models.ForeignKey(Product, on_delete=models.PROTECT, related_name='product')
-    price = models.FloatField(default=0)
-    count = models.IntegerField(default=0)
-
-
-class Basket(models.Model):  # Возможно придется подумать
-    products = models.ManyToManyField(ProductOrder, related_name='baskets')
 
 
 class Order(models.Model):
@@ -130,4 +127,4 @@ class Order(models.Model):
     status = models.CharField(max_length=100)
     city = models.CharField(max_length=100)
     address = models.CharField(max_length=250)
-    products = models.ManyToManyField(ProductOrder, related_name='orders')
+    products = models.ManyToManyField(Product, related_name='orders')

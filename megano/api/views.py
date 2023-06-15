@@ -1,6 +1,12 @@
-from django.contrib.auth.mixins import LoginRequiredMixin
+"""
+TODO
+настроить разрешения
+"""
+
+import random
+
 from django.shortcuts import render
-from django.http import JsonResponse
+from django.http import JsonResponse, HttpRequest
 from random import randrange
 import json
 from django.contrib.auth import authenticate, login, logout
@@ -8,117 +14,130 @@ from django.contrib.auth import get_user_model
 from django.http import HttpResponse
 from rest_framework import permissions
 from rest_framework.filters import SearchFilter, OrderingFilter
-from rest_framework.generics import GenericAPIView, RetrieveAPIView, CreateAPIView, RetrieveUpdateAPIView, UpdateAPIView
-from rest_framework.mixins import ListModelMixin, RetrieveModelMixin, CreateModelMixin, UpdateModelMixin
+from rest_framework.generics import GenericAPIView, RetrieveAPIView, CreateAPIView, RetrieveUpdateAPIView, ListAPIView, \
+	UpdateAPIView
+from rest_framework.mixins import ListModelMixin, CreateModelMixin, DestroyModelMixin, UpdateModelMixin
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
-from rest_framework.views import APIView
-from rest_framework.viewsets import ModelViewSet
 
-from .models import Category, Product, Tag, Review, Profile, Image
+from .basket import Basket
+
+from .models import (
+	Category,
+	Product,
+	Tag,
+	Review,
+	Profile,
+	Sale
+)
 from .serializers import (
-	CatalogItem,
+	CatalogSerializer,
 	TagSerializer,
-	ProductShort,
+	ProductShortSerializer,
 	ReviewSerializer,
-	ProductFull, ProfileSerializer, ImageSerializer
+	ProductFullSerializer,
+	ProfileSerializer,
+	ImageSerializer,
+	SaleSerializer,
+	AvatarSerializer
 )
 
 User = get_user_model()
 
-def banners(request):
-	data = [
-		{
-			"id": "123",
-			"category": 55,
-			"price": 500.67,
-			"count": 12,
-			"date": "Thu Feb 09 2023 21:39:52 GMT+0100 (Central European Standard Time)",
-			"title": "video card",
-			"description": "description of the product",
-			"freeDelivery": True,
-			"images": [
-				{
-					"src": "https://proprikol.ru/wp-content/uploads/2020/12/kartinki-ryabchiki-14.jpg",
-					"alt": "any alt text",
-				}
-			],
-			"tags": [
-				"string"
-			],
-			"reviews": 5,
-			"rating": 4.6
-		},
-	]
-	return JsonResponse(data, safe=False)
+
+class BannersView(ListAPIView):
+	serializer_class = ProductShortSerializer
+
+	def get_queryset(self):
+		queryset = Product.objects.all()
+		rnd = random.randint(1, len(queryset))
+		return queryset[(rnd - 1):rnd]
 
 
 class CategoryView(ListModelMixin, GenericAPIView):
-	serializer_class = CatalogItem
+	serializer_class = CatalogSerializer
 	queryset = Category.objects.filter(parent=None).select_related('image')
 
 	def get(self, request):
 		return self.list(request)
 
 
-# class CatalogPagination(PageNumberPagination):
-# 	page_size = 10
-# 	page_size_query_param = 'limit'
-# 	page_query_param = 'page'
-# 	max_page_size = 100
+class Pagination(PageNumberPagination):
+	page_size = 20
+	page_query_param = 'currentPage'
+	page_size_query_param = 'limit'
+	max_page_size = 100
 
 
 class CatalogView(ListModelMixin, GenericAPIView):
-	queryset = Product.objects.all()
-	serializer_class = ProductShort
+	serializer_class = ProductShortSerializer
+	pagination_class = Pagination
 
-	#pagination_class = CatalogPagination
+	def get_order(self):
+		sort = self.request.query_params.get('sort')
+		if self.request.query_params.get('sortType') == 'inc':
+			return sort
+		return '-' + sort
 
 	filter_backends = [
 		OrderingFilter
 	]
-	ordering_fields = ['sold', 'price', 'reviews', 'date']
-# filter[name] =
-# filter[minPrice] = 0
-# filter[maxPrice] = 50000
-# filter[freeDelivery] = false
-# filter[available] = true
-# currentPage = 1
-# category = NaN
-# sort = price
-# sortType = inc
-# limit = 20
-	# def get_queryset(self):  # TODO сделать фильтрацию
-	# 	queryset = Product.objects.all()
-	# 	# book_name = self.request.query_params.get('name')
-	# 	# author_name = self.request.query_params.get('author')
-	# 	# page = self.request.query_params.get('page')
-	# 	# page_up = self.request.query_params.get('page_up')
-	# 	# page_down = self.request.query_params.get('page_down')
-	# 	# if author_name and book_name:
-	# 	# 	author_id = Author.objects.get(name=author_name)
-	# 	# 	queryset = queryset.filter(name=book_name, author=author_id)
-	# 	# elif page:
-	# 	# 	queryset = queryset.filter(count_page=page)
-	# 	# elif page_up:
-	# 	# 	queryset = queryset.filter(count_page__gt=int(page_up))
-	# 	# elif page_down:
-	# 	# 	queryset = queryset.filter(count_page__lt=page_down)
-	# 	return queryset
+	ordering_fields = [
+		get_order,
+	]
+
+	def get_queryset(self):
+		name = self.request.query_params.get('filter[name]')
+		minPrice = self.request.query_params.get('filter[minPrice]')
+		maxPrice = self.request.query_params.get('filter[maxPrice]')
+		freeDelivery = self.request.query_params.get('filter[freeDelivery]')
+		available = self.request.query_params.get('filter[available]')
+		category = self.request.query_params.get('category')
+
+		sort = self.request.query_params.get('sort')
+		if self.request.query_params.get('sortType') == 'dec':
+			sort = '-' + sort
+
+		queryset = (
+			Product.objects
+			.prefetch_related('images')
+			.prefetch_related('tags')
+			.prefetch_related('reviews')
+			.order_by(sort)
+		)
+
+		queryset = queryset.filter(price__range=(int(minPrice), int(maxPrice))).order_by(sort).all()
+
+		if category is not None:
+			queryset = queryset.filter(category=category)
+		if name is not None:
+			queryset = queryset.filter(title__icontains=name)
+		if freeDelivery == 'true':
+			queryset = queryset.filter(freeDelivery=True)
+		if available == 'true':
+			queryset = queryset.filter(count__gt=0)
+		print(queryset)
+		return queryset
+
+	def get_last_page(self):
+		lastPage = len(self.get_queryset()) // int(Pagination.page_size)
+		if len(self.get_queryset()) % int(Pagination.page_size) > 0:
+			lastPage += 1
+		return lastPage
 
 	def get(self, request):
 		return JsonResponse(
 			{
-				"items": self.list(request).data,
-				"currentPage": 1,
-				"lastPage": 3
+				"items": self.list(request).data['results'],
+				"currentPage": int(self.request.query_params.get('currentPage')),
+				"lastPage": self.get_last_page()
 			}
 		)
 
 
 class ProductPopularView(ListModelMixin, GenericAPIView):
-	queryset = Product.objects.order_by('-sold').all()[:8]
-	serializer_class = ProductShort
+	queryset = Product.objects.order_by('-rating').all()[:8]
+	serializer_class = ProductShortSerializer
 
 	def get(self, request):
 		return self.list(request)
@@ -126,155 +145,92 @@ class ProductPopularView(ListModelMixin, GenericAPIView):
 
 class ProductLimitedView(ListModelMixin, GenericAPIView):
 	queryset = Product.objects.filter(limited_edition=True).all()[:16]
-	serializer_class = ProductShort
+	serializer_class = ProductShortSerializer
 
 	def get(self, request):
 		return self.list(request)
 
 
-def sales(request):
-	data = {
-		'items': [
+class SalesView(ListModelMixin, GenericAPIView):
+	serializer_class = SaleSerializer
+	pagination_class = Pagination
+
+	def get_queryset(self):
+		queryset = (
+			Sale.objects
+			.select_related('product')
+		)
+		return queryset
+
+	def get_last_page(self):
+		lastPage = len(self.get_queryset()) // int(Pagination.page_size)
+		if len(self.get_queryset()) % int(Pagination.page_size) > 0:
+			lastPage += 1
+		return lastPage
+
+	def get(self, request):
+		items = self.list(request).data['results']
+		for item in items:
+			item.update(item.pop('product'))
+
+		return JsonResponse(
 			{
-				"id": 123,
-				"price": 500.67,
-				"salePrice": 200.67,
-				"dateFrom": "05-08",
-				"dateTo": "05-20",
-				"title": "video card",
-				"images": [
-						{
-							"src": "https://proprikol.ru/wp-content/uploads/2020/12/kartinki-ryabchiki-14.jpg",
-							"alt": "hello alt",
-						}
-				 ],
+				"items": items,
+				"currentPage": int(self.request.query_params.get('currentPage')),
+				"lastPage": self.get_last_page()
 			}
-		],
-		'currentPage': randrange(1, 4),
-		'lastPage': 3,
-	}
-	return JsonResponse(data)
+		)
 
 
-def basket(request):
-	if request.method == "GET":
-		print('[GET] /api/basket/')
-		data = [
-			{
-				"id": 123,
-				"category": 55,
-				"price": 500.67,
-				"count": 12,
-				"date": "Thu Feb 09 2023 21:39:52 GMT+0100 (Central European Standard Time)",
-				"title": "video card",
-				"description": "description of the product",
-				"freeDelivery": True,
-				"images": [
-						{
-							"src": "https://proprikol.ru/wp-content/uploads/2020/12/kartinki-ryabchiki-14.jpg",
-							"alt": "hello alt",
-						}
-				 ],
-				 "tags": [
-						{
-							"id": 0,
-							"name": "Hello world"
-						}
-				 ],
-				"reviews": 5,
-				"rating": 4.6
-			},
-			{
-				"id": 124,
-				"category": 55,
-				"price": 201.675,
-				"count": 5,
-				"date": "Thu Feb 09 2023 21:39:52 GMT+0100 (Central European Standard Time)",
-				"title": "video card",
-				"description": "description of the product",
-				"freeDelivery": True,
-				"images": [
-						{
-							"src": "https://proprikol.ru/wp-content/uploads/2020/12/kartinki-ryabchiki-14.jpg",
-							"alt": "hello alt",
-						}
-				 ],
-				 "tags": [
-						{
-							"id": 0,
-							"name": "Hello world"
-						}
-				 ],
-				"reviews": 5,
-				"rating": 4.6
-			}
-		]
+class BasketView(GenericAPIView):
+	# serializer_class = BasketSerializer
+	# queryset = (
+	# 	Basket.objects
+	# 	.select_related('product')
+	# 	.select_related('user')
+	# 	# .filter(user=get_user)
+	# )
+
+	def get(self, request):
+		basket = Basket(request)
+		data = []
+		for item in basket:
+			product = ProductShortSerializer(instance=item['product']).data
+			product['count'] = item['count']
+			product['price'] = item['price']
+			data.append(product)
 		return JsonResponse(data, safe=False)
 
-	elif (request.method == "POST"):
-		body = json.loads(request.body)
-		id = body['id']
-		count = body['count']
-		print('[POST] /api/basket/   |   id: {id}, count: {count}'.format(id=id, count=count))
-		data = [
-			{
-				"id": id,
-				"category": 55,
-				"price": 500.67,
-				"count": 13,
-				"date": "Thu Feb 09 2023 21:39:52 GMT+0100 (Central European Standard Time)",
-				"title": "video card",
-				"description": "description of the product",
-				"freeDelivery": True,
-				"images": [
-						{
-							"src": "https://proprikol.ru/wp-content/uploads/2020/12/kartinki-ryabchiki-14.jpg",
-							"alt": "hello alt",
-						}
-				 ],
-				 "tags": [
-						{
-							"id": 0,
-							"name": "Hello world"
-						}
-				 ],
-				"reviews": 5,
-				"rating": 4.6
-			}
-		]
-		return JsonResponse(data, safe=False)
+	def post(self, request):
+		basket = Basket(request)
+		product = Product.objects.get(id=request.data['id'])
+		basket.change(product=product, count=request.data['count'])
+		serializer = ProductShortSerializer(
+			instance=product,
+			data=request.session['basket'][str(product.id)],
+			partial=True
+		)
+		if serializer.is_valid():
+			serializer.save()
+			return JsonResponse(serializer.data)
 
-	elif (request.method == "DELETE"):
-		body = json.loads(request.body)
-		id = body['id']
-		print('[DELETE] /api/basket/')
-		data = [
-			{
-			"id": id,
-			"category": 55,
-			"price": 500.67,
-			"count": 11,
-			"date": "Thu Feb 09 2023 21:39:52 GMT+0100 (Central European Standard Time)",
-			"title": "video card",
-			"description": "description of the product",
-			"freeDelivery": True,
-			"images": [
-					{
-						"src": "https://proprikol.ru/wp-content/uploads/2020/12/kartinki-ryabchiki-14.jpg",
-						"alt": "hello alt",
-					}
-			 ],
-			 "tags": [
-					{
-						"id": 0,
-						"name": "Hello world"
-					}
-			 ],
-			"reviews": 5,
-			"rating": 4.6
-			}
-		]
-		return JsonResponse(data, safe=False)
+	def delete(self, request):
+		basket = Basket(request)
+		product = Product.objects.get(id=request.data['id'])
+		count = - request.data['count']
+		basket.change(product=product, count=count)
+		data = request.session['basket'].get(str(product.id), None)
+		if data:
+			serializer = ProductShortSerializer(
+				instance=product,
+				data=data,
+				partial=True
+			)
+			if serializer.is_valid():
+				serializer.save()
+				return JsonResponse(serializer.data)
+		return JsonResponse({})
+
 
 def orders(request):
 	if (request.method == "POST"):
@@ -318,10 +274,12 @@ def signIn(request):
 		else:
 			return HttpResponse(status=500)
 
+
 def signUp(request):
 	user = User.objects.create_user("mir232", "lennon@thebeatles.com", "pass232")
 	user.save()
 	return HttpResponse(status=200)
+
 
 def signOut(request):
 	logout(request)
@@ -329,8 +287,15 @@ def signOut(request):
 
 
 class ProductView(RetrieveAPIView):
-	serializer_class = ProductFull
-	queryset = Product.objects.all()
+	serializer_class = ProductFullSerializer
+	queryset = (
+		Product.objects
+		.prefetch_related('tags')
+		.prefetch_related('specifications')
+		.prefetch_related('images')
+		.prefetch_related('tags')
+		.prefetch_related('reviews')
+	)
 	lookup_field = 'id'
 
 
@@ -346,13 +311,15 @@ class ReviewView(CreateAPIView):
 	serializer_class = ReviewSerializer
 	queryset = Review.objects.select_related('product')
 
-
 	def post(self, request, *args, **kwargs):
 		request.data['product'] = kwargs['id']
-		return self.create(request, *args, **kwargs)
+		response = self.create(request, *args, **kwargs)
+		product = Product.objects.get(kwargs['id'])
+		product.save()
+		return response
 
 
-class ProfileView(RetrieveAPIView):
+class ProfileView(RetrieveUpdateAPIView):
 	serializer_class = ProfileSerializer
 	queryset = Profile.objects.select_related('user')
 
@@ -363,10 +330,8 @@ class ProfileView(RetrieveAPIView):
 		return self.retrieve(request, *args, **kwargs)
 
 	def post(self, request, *args, **kwargs):
-		request.data['user'] = request.user.id
-	# 	request.data['avatar'] = {}
-	# 	request.data['avatar']['src'] = request.user.profile.avatar.src
-		return Response(request, *args, **kwargs)
+		return self.update(request, *args, **kwargs)
+
 
 
 def profilePassword(request):
@@ -518,19 +483,20 @@ def payment(request, id):
 	return HttpResponse(status=200)
 
 
-
-class AvatarView(CreateAPIView):
-	serializer_class = ImageSerializer
-	queryset = Image.objects.all()
+class AvatarView(UpdateModelMixin, GenericAPIView):
+	serializer_class = AvatarSerializer
+	queryset = Profile.objects.select_related("avatar")
 
 	def get_object(self):
-		return self.request.user.profile.avatar
+		return self.request.user.profile
 
 	def post(self, request, *args, **kwargs):
 		instance = self.get_object()
-		request.data['src'] = request.FILES['avatar']
-		request.data['alt'] = request.user.username
-		serializer = self.serializer_class(instance, data=request.data, partial=True)
+		data = {"avatar": {
+				"src": request.FILES["avatar"],
+				"alt": request.user.username + "_avatar"
+			}}
+		serializer = AvatarSerializer(instance=instance, data=data, partial=True)
 		if serializer.is_valid():
 			serializer.save()
 			return JsonResponse(serializer.data)

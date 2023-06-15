@@ -139,3 +139,5 @@ REST_FRAMEWORK = {
         "django_filters.rest_framework.DjangoFilterBackend",
     ],
 }
+
+BASKET_SESSION_ID = 'basket'
