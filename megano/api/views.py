@@ -6,7 +6,7 @@ TODO
 import random
 
 from django.shortcuts import render
-from django.http import JsonResponse
+from django.http import JsonResponse, HttpRequest
 from random import randrange
 import json
 from django.contrib.auth import authenticate, login, logout
@@ -20,6 +20,7 @@ from rest_framework.mixins import ListModelMixin, CreateModelMixin, DestroyModel
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
 
+from .basket import Basket
 
 from .models import (
 	Category,
@@ -27,7 +28,8 @@ from .models import (
 	Tag,
 	Review,
 	Profile,
-	Image, Sale, Basket)
+	Sale
+)
 from .serializers import (
 	CatalogSerializer,
 	TagSerializer,
@@ -37,7 +39,7 @@ from .serializers import (
 	ProfileSerializer,
 	ImageSerializer,
 	SaleSerializer,
-	BasketSerializer, AvatarSerializer
+	AvatarSerializer
 )
 
 User = get_user_model()
@@ -180,62 +182,54 @@ class SalesView(ListModelMixin, GenericAPIView):
 		)
 
 
-def get_user(request):
-	# if request.user.is_auntification:
-	# 	return request.user.pk
-	return 1
-
-
-class BasketView(CreateModelMixin, ListModelMixin, GenericAPIView):
-	serializer_class = BasketSerializer
-	queryset = (
-		Basket.objects
-		.select_related('product')
-		.select_related('user')
-		# .filter(user=get_user)
-	)
+class BasketView(GenericAPIView):
+	# serializer_class = BasketSerializer
+	# queryset = (
+	# 	Basket.objects
+	# 	.select_related('product')
+	# 	.select_related('user')
+	# 	# .filter(user=get_user)
+	# )
 
 	def get(self, request):
+		basket = Basket(request)
 		data = []
-		for item in self.list(request).data:
-
-			item["product"] = ProductShortSerializer(instance=Product.objects.get(id=item["product"])).data
-			print(item["product"] )
-			item["product"]['count'] = item['count']
-			data.append(item['product'])
+		for item in basket:
+			product = ProductShortSerializer(instance=item['product']).data
+			product['count'] = item['count']
+			product['price'] = item['price']
+			data.append(product)
 		return JsonResponse(data, safe=False)
 
 	def post(self, request):
-		user_pk = self.request.user.pk
-		product_pk = request.data["id"]
-		count = request.data["count"]
-		basket = Basket.objects.filter(user=user_pk, product=product_pk).first()
-		if basket:
-			data = {"count": basket.count + count}
-			serializer = BasketSerializer(instance=basket, data=data, partial=True)
-			if serializer.is_valid():
-				serializer.save()
-				return JsonResponse(serializer.data)
-		request.data["user"] = user_pk
-		request.data["product"] = product_pk
-		return self.create(request)
+		basket = Basket(request)
+		product = Product.objects.get(id=request.data['id'])
+		basket.change(product=product, count=request.data['count'])
+		serializer = ProductShortSerializer(
+			instance=product,
+			data=request.session['basket'][str(product.id)],
+			partial=True
+		)
+		if serializer.is_valid():
+			serializer.save()
+			return JsonResponse(serializer.data)
 
 	def delete(self, request):
-		user_pk = self.request.user.pk
-		product_pk = request.data["id"]
-		count = request.data["count"]
-		basket = Basket.objects.filter(user=user_pk).get(product=product_pk)
-		if basket:
-			count = basket.count - count
-			if count == 0:
-				basket.delete()
-				return JsonResponse({})
-			data = {"count": count}
-			serializer = BasketSerializer(instance=basket, data=data, partial=True)
+		basket = Basket(request)
+		product = Product.objects.get(id=request.data['id'])
+		count = - request.data['count']
+		basket.change(product=product, count=count)
+		data = request.session['basket'].get(str(product.id), None)
+		if data:
+			serializer = ProductShortSerializer(
+				instance=product,
+				data=data,
+				partial=True
+			)
 			if serializer.is_valid():
 				serializer.save()
-
 				return JsonResponse(serializer.data)
+		return JsonResponse({})
 
 
 def orders(request):

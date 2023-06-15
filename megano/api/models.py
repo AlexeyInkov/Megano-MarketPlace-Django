@@ -63,7 +63,7 @@ class Specification(models.Model):
 class Product(models.Model):
 
     category = models.ForeignKey(Category, on_delete=models.PROTECT)
-    price = models.FloatField(default=0)
+    price = models.DecimalField(default=0, max_digits=10, decimal_places=2)
     count = models.IntegerField(default=0)
     date = models.DateTimeField(auto_now_add=True)
     title = models.CharField(max_length=100)
@@ -116,12 +116,6 @@ class Sale(models.Model):
     salePrice = models.FloatField(default=0)
     dateFrom = models.DateField()
     dateTo = models.DateField()
-
-
-class Basket(models.Model):
-    user = models.ForeignKey(Profile, on_delete=models.CASCADE, null=True)
-    product = models.ForeignKey(Product, on_delete=models.PROTECT, related_name='basket')
-    count = models.IntegerField(default=0)
 
 
 class Order(models.Model):
