@@ -1,6 +1,6 @@
 from django.conf import settings
 from decimal import Decimal
-from .models import Product
+from api.models import Product
 
 
 class Basket(object):
@@ -55,3 +55,13 @@ class Basket(object):
         for item in self.basket.values():
             item['price'] = Decimal(item['price'])
             yield item
+
+    def clear(self) -> None:
+        """очистить корзину"""
+        return self.basket.clear()
+
+    def merge_baskets(self, old):
+        """Перенос анонимной корзины в корзину зарегистрированного"""
+        for item in old:
+            self.change(item['product'], item['count'], )
+        old.clear()

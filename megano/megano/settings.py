@@ -140,4 +140,8 @@ REST_FRAMEWORK = {
     ],
 }
 
+SESSION = {
+    "SESSION_ENGINE": 'Database sessions',
+    "SESSION_COOKIE_AGE": 1209600
+}
 BASKET_SESSION_ID = 'basket'

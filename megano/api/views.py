@@ -5,22 +5,18 @@ TODO
 
 import random
 
-from django.shortcuts import render
-from django.http import JsonResponse, HttpRequest
-from random import randrange
+from django.http import JsonResponse
 import json
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth import get_user_model
 from django.http import HttpResponse
-from rest_framework import permissions
-from rest_framework.filters import SearchFilter, OrderingFilter
-from rest_framework.generics import GenericAPIView, RetrieveAPIView, CreateAPIView, RetrieveUpdateAPIView, ListAPIView, \
-	UpdateAPIView
-from rest_framework.mixins import ListModelMixin, CreateModelMixin, DestroyModelMixin, UpdateModelMixin
+from django.shortcuts import redirect
+from rest_framework.filters import OrderingFilter
+from rest_framework.generics import GenericAPIView, RetrieveAPIView, CreateAPIView, RetrieveUpdateAPIView, ListAPIView, ListCreateAPIView
+from rest_framework.mixins import ListModelMixin, UpdateModelMixin
 from rest_framework.pagination import PageNumberPagination
-from rest_framework.response import Response
 
-from .basket import Basket
+from api.servises.basket import Basket
 
 from .models import (
 	Category,
@@ -28,7 +24,7 @@ from .models import (
 	Tag,
 	Review,
 	Profile,
-	Sale
+	Sale, Order
 )
 from .serializers import (
 	CatalogSerializer,
@@ -37,10 +33,10 @@ from .serializers import (
 	ReviewSerializer,
 	ProductFullSerializer,
 	ProfileSerializer,
-	ImageSerializer,
 	SaleSerializer,
-	AvatarSerializer
+	AvatarSerializer, OrderSerializer, OrderProductSerializer
 )
+from .servises.shop import Pagination
 
 User = get_user_model()
 
@@ -62,29 +58,9 @@ class CategoryView(ListModelMixin, GenericAPIView):
 		return self.list(request)
 
 
-class Pagination(PageNumberPagination):
-	page_size = 20
-	page_query_param = 'currentPage'
-	page_size_query_param = 'limit'
-	max_page_size = 100
-
-
 class CatalogView(ListModelMixin, GenericAPIView):
 	serializer_class = ProductShortSerializer
 	pagination_class = Pagination
-
-	def get_order(self):
-		sort = self.request.query_params.get('sort')
-		if self.request.query_params.get('sortType') == 'inc':
-			return sort
-		return '-' + sort
-
-	filter_backends = [
-		OrderingFilter
-	]
-	ordering_fields = [
-		get_order,
-	]
 
 	def get_queryset(self):
 		name = self.request.query_params.get('filter[name]')
@@ -116,7 +92,6 @@ class CatalogView(ListModelMixin, GenericAPIView):
 			queryset = queryset.filter(freeDelivery=True)
 		if available == 'true':
 			queryset = queryset.filter(count__gt=0)
-		print(queryset)
 		return queryset
 
 	def get_last_page(self):
@@ -183,14 +158,6 @@ class SalesView(ListModelMixin, GenericAPIView):
 
 
 class BasketView(GenericAPIView):
-	# serializer_class = BasketSerializer
-	# queryset = (
-	# 	Basket.objects
-	# 	.select_related('product')
-	# 	.select_related('user')
-	# 	# .filter(user=get_user)
-	# )
-
 	def get(self, request):
 		basket = Basket(request)
 		data = []
@@ -264,12 +231,15 @@ def orders(request):
 
 def signIn(request):
 	if request.method == "POST":
+		old_basket = Basket(request)
 		body = json.loads(request.body)
 		username = body['username']
 		password = body['password']
 		user = authenticate(request, username=username, password=password)
 		if user is not None:
 			login(request, user)
+			new_basket = Basket(request)
+			new_basket.merge_baskets(old_basket)
 			return HttpResponse(status=200)
 		else:
 			return HttpResponse(status=500)
@@ -337,97 +307,28 @@ class ProfileView(RetrieveUpdateAPIView):
 def profilePassword(request):
 	return HttpResponse(status=200)
 
-def orders(request):
-	if(request.method == 'GET'):
-		data = [
-			{
-        "id": 123,
-        "createdAt": "2023-05-05 12:12",
-        "fullName": "Annoying Orange",
-        "email": "no-reply@mail.ru",
-        "phone": "88002000600",
-        "deliveryType": "free",
-        "paymentType": "online",
-        "totalCost": 567.8,
-        "status": "accepted",
-        "city": "Moscow",
-        "address": "red square 1",
-        "products": [
-          {
-            "id": 123,
-            "category": 55,
-            "price": 500.67,
-            "count": 12,
-            "date": "Thu Feb 09 2023 21:39:52 GMT+0100 (Central European Standard Time)",
-            "title": "video card",
-            "description": "description of the product",
-            "freeDelivery": True,
-            "images": [
-              {
-                "src": "https://proprikol.ru/wp-content/uploads/2020/12/kartinki-ryabchiki-14.jpg",
-                "alt": "Image alt string"
-              }
-            ],
-            "tags": [
-              {
-                "id": 12,
-                "name": "Gaming"
-              }
-            ],
-            "reviews": 5,
-            "rating": 4.6
-          }
-        ]
-      },
-			{
-        "id": 123,
-        "createdAt": "2023-05-05 12:12",
-        "fullName": "Annoying Orange",
-        "email": "no-reply@mail.ru",
-        "phone": "88002000600",
-        "deliveryType": "free",
-        "paymentType": "online",
-        "totalCost": 567.8,
-        "status": "accepted",
-        "city": "Moscow",
-        "address": "red square 1",
-        "products": [
-          {
-            "id": 123,
-            "category": 55,
-            "price": 500.67,
-            "count": 12,
-            "date": "Thu Feb 09 2023 21:39:52 GMT+0100 (Central European Standard Time)",
-            "title": "video card",
-            "description": "description of the product",
-            "freeDelivery": True,
-            "images": [
-              {
-                "src": "https://proprikol.ru/wp-content/uploads/2020/12/kartinki-ryabchiki-14.jpg",
-                "alt": "Image alt string"
-              }
-            ],
-            "tags": [
-              {
-                "id": 12,
-                "name": "Gaming"
-              }
-            ],
-            "reviews": 5,
-            "rating": 4.6
-          }
-        ]
-      }
-		]
-		return JsonResponse(data, safe=False)
 
-	elif(request.method == 'POST'):
-		data = {
-			"orderId": 123,
-		}
-		return JsonResponse(data)
+class OrdersView(ListModelMixin, GenericAPIView):
+	serializer_class = OrderSerializer
+	queryset = Order.objects.prefetch_related('products')
 
-	return HttpResponse(status=500)
+	def get(self, request, *args, **kwargs):
+		return self.list(request, *args, **kwargs)
+
+	def post(self, request, *args, **kwargs):
+		if request.user.is_authenticated:
+			order_s = OrderSerializer(data={'products': request.data,
+											'user': request.user.pk})
+			if order_s.is_valid():
+				order_s.save()
+
+			# kwargs['products'] = request.data
+			# kwargs['user'] = request.user.pk
+			# print(request.data)
+			# return self.create(request, *args, **kwargs)
+			return JsonResponse({})
+		return redirect('/login/')
+
 
 def order(request, id):
 	if(request.method == 'GET'):

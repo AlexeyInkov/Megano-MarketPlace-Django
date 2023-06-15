@@ -1,5 +1,4 @@
-
-
+from _decimal import Decimal
 from django.contrib.auth.models import User
 from django.db import models
 
@@ -119,12 +118,51 @@ class Sale(models.Model):
 
 
 class Order(models.Model):
+    DELIVERY_CHOICES = [
+        ('reg', 'Regular'),
+        ('exp', 'Express')
+    ]
+    PAYMENT_CHOICES = [
+        ('card', 'Bank Card'),
+        ('cash', 'From random account')
+    ]
+
     create_at = models.DateField(auto_now_add=True)
+
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='user')
-    delivery_type = models.CharField(max_length=100)
-    payment_type = models.CharField(max_length=100)
-    total_cost = models.FloatField()
+    fullName = models.CharField(max_length=100, null=True, blank=True)
+    phone = models.CharField(max_length=16, null=True, blank=True)
+    email = models.EmailField(null=True, blank=True)
+
+    deliveryType = models.CharField(max_length=3, choices=DELIVERY_CHOICES, default='reg')
+    city = models.CharField(max_length=50, null=True, blank=True)
+    address = models.CharField(max_length=255, null=True, blank=True)
+
+    paymentType = models.CharField(
+        max_length=4,
+        choices=PAYMENT_CHOICES,
+        default='card'
+    )
+
+    delivery_cost = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     status = models.CharField(max_length=100)
-    city = models.CharField(max_length=100)
-    address = models.CharField(max_length=250)
-    products = models.ManyToManyField(Product, related_name='orders')
+
+
+
+    @property
+    def totalCost(self) -> Decimal:
+        """Метод получения общей стоимости товаров в заказе"""
+        return Decimal(sum(product.get_cost() for product in self.products.all()))
+
+
+class OrderProduct(models.Model):
+    order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name='products')
+    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='order_products')
+    price = models.DecimalField(max_digits=10, decimal_places=2)
+    count = models.PositiveIntegerField(default=1)
+
+    def __str__(self):
+        return str(self.id)
+
+    def get_cost(self):
+        return self.price * self.count
