@@ -317,23 +317,32 @@ class OrdersView(ListModelMixin, GenericAPIView):
 
 	def post(self, request, *args, **kwargs):
 		if request.user.is_authenticated:
-			order_s = OrderSerializer(data={'products': request.data,
-											'user': request.user.pk})
-			if order_s.is_valid():
-				order_s.save()
+			order_serializer = OrderSerializer(data={'user': request.user.pk}, partial=True)
+			if order_serializer.is_valid():
+				order_serializer.save()
+				print(order_serializer.data)
+			for product in request.data:
 
-			# kwargs['products'] = request.data
-			# kwargs['user'] = request.user.pk
-			# print(request.data)
-			# return self.create(request, *args, **kwargs)
-			return JsonResponse({})
+				data = {
+					'order': order_serializer.data['id'],
+					'product': product['id'],
+					'price': product['price'],
+					'count': product['count']
+				}
+				product_serializer = OrderProductSerializer(data=data)
+				if product_serializer.is_valid():
+					product_serializer.save()
+				# basket = Basket(request)  # TODO Включить очистку корзины после создания заказа
+				# basket.clear()
+				print(order_serializer.data)
+			return JsonResponse(order_serializer.data)
 		return redirect('/login/')
 
 
 def order(request, id):
 	if(request.method == 'GET'):
 		data = {
-			"id": 123,
+			"id": 16,
 			"createdAt": "2023-05-05 12:12",
 			"fullName": "Annoying Orange",
 			"email": "no-reply@mail.ru",
@@ -374,7 +383,7 @@ def order(request, id):
 		return JsonResponse(data)
 
 	elif(request.method == 'POST'):
-		data = { "orderId": 123 }
+		data = { "orderId": 16 }
 		return JsonResponse(data)
 
 	return HttpResponse(status=500)

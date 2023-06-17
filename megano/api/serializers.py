@@ -13,7 +13,7 @@ from .models import (
     Sale,
     Review,
     Profile,
-    Specification, Order,
+    Specification, Order, OrderProduct,
 )
 
 
@@ -178,8 +178,12 @@ class CatalogSerializer(serializers.ModelSerializer):
 
 
 class OrderSerializer(serializers.ModelSerializer):
-    createdAt = serializers.DateField(format='%Y-%m-%d %H:%M')
+    def get_totalCost(self, instance):
+        return instance.totalCost
+
+    createdAt = serializers.DateTimeField(format='%Y-%m-%d %H:%M')
     products = ProductShortSerializer(many=True, required=False)
+    totalCost = serializers.SerializerMethodField()
 
     class Meta:
         model = Order
@@ -195,17 +199,18 @@ class OrderSerializer(serializers.ModelSerializer):
             "status",
             "city",
             "address",
-            "products"
+            "products",
+            "user"
         ]
 
-    def create(self, validated_data):
-        order = Order.objects.create(**validated_data)
-        order.save()
-        return order
+    # def create(self, validated_data):
+    #     order = Order.objects.create(**validated_data)
+    #     return order
 
 
 class OrderProductSerializer(serializers.ModelSerializer):
     class Meta:
+        model = OrderProduct
         fields = [
             'order',
             'product',
@@ -213,3 +218,6 @@ class OrderProductSerializer(serializers.ModelSerializer):
             'count'
         ]
 
+    # def create(self, validated_data):
+    #     order_product = OrderProduct.objects.create(**validated_data)
+    #     return order_product

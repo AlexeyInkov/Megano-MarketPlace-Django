@@ -127,7 +127,7 @@ class Order(models.Model):
         ('cash', 'From random account')
     ]
 
-    create_at = models.DateField(auto_now_add=True)
+    createdAt = models.DateTimeField(auto_now_add=True)
 
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='user')
     fullName = models.CharField(max_length=100, null=True, blank=True)
@@ -165,4 +165,5 @@ class OrderProduct(models.Model):
         return str(self.id)
 
     def get_cost(self):
+        print(self.price * self.count)
         return self.price * self.count

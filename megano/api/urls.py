@@ -19,6 +19,6 @@ urlpatterns = [
     path('profile', views.ProfileView.as_view()),  # DONE
     path('profile/password', views.profilePassword),
     path('profile/avatar', views.AvatarView.as_view()),  # DONE
-    path('order/<int:id>', views.order),
+    path('order/<int:id>', views.order),  #
     path('payment/<int:id>', views.payment),
 ]
