@@ -47,7 +47,6 @@ class AvatarSerializer(serializers.ModelSerializer):
 class ProfileSerializer(serializers.ModelSerializer):
     avatar = ImageSerializer(read_only=True)
 
-
     class Meta:
         model = Profile
         fields = 'user', 'fullName', 'email', 'phone', 'avatar'
@@ -66,13 +65,13 @@ class UserSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ['username', 'profile']
+        fields = ['username', 'password', 'profile']
 
-    def create(self, validated_data):
-        profile_data = validated_data.pop('profile')
-        user = User.objects.create(**validated_data)
-        Profile.objects.create(user=user, **profile_data)
-        return user
+
+class ChangePasswordSerializer(serializers.Serializer):
+    model = User
+    currentPassword = serializers.CharField(required=True)
+    newPassword = serializers.CharField(required=True)
 
 
 class SpecificationSerializer(serializers.ModelSerializer):
@@ -186,7 +185,7 @@ class OrderSerializer(serializers.ModelSerializer):
     totalCost = serializers.SerializerMethodField()
 
     class Meta:
-        model = Order
+        model = Order #.products.through
         fields = [
             "id",
             "createdAt",
@@ -203,10 +202,6 @@ class OrderSerializer(serializers.ModelSerializer):
             "user"
         ]
 
-    # def create(self, validated_data):
-    #     order = Order.objects.create(**validated_data)
-    #     return order
-
 
 class OrderProductSerializer(serializers.ModelSerializer):
     class Meta:
@@ -217,7 +212,3 @@ class OrderProductSerializer(serializers.ModelSerializer):
             'price',
             'count'
         ]
-
-    # def create(self, validated_data):
-    #     order_product = OrderProduct.objects.create(**validated_data)
-    #     return order_product

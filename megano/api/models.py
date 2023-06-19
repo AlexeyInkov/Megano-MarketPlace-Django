@@ -62,7 +62,7 @@ class Specification(models.Model):
 class Product(models.Model):
 
     category = models.ForeignKey(Category, on_delete=models.PROTECT)
-    price = models.DecimalField(default=0, max_digits=10, decimal_places=2)
+    price = models.FloatField(default=0)
     count = models.IntegerField(default=0)
     date = models.DateTimeField(auto_now_add=True)
     title = models.CharField(max_length=100)
@@ -120,7 +120,8 @@ class Sale(models.Model):
 class Order(models.Model):
     DELIVERY_CHOICES = [
         ('reg', 'Regular'),
-        ('exp', 'Express')
+        ('exp', 'Express'),
+        ('free', 'Free')
     ]
     PAYMENT_CHOICES = [
         ('card', 'Bank Card'),
@@ -134,7 +135,7 @@ class Order(models.Model):
     phone = models.CharField(max_length=16, null=True, blank=True)
     email = models.EmailField(null=True, blank=True)
 
-    deliveryType = models.CharField(max_length=3, choices=DELIVERY_CHOICES, default='reg')
+    deliveryType = models.CharField(max_length=4, choices=DELIVERY_CHOICES, default='reg')
     city = models.CharField(max_length=50, null=True, blank=True)
     address = models.CharField(max_length=255, null=True, blank=True)
 
@@ -146,8 +147,6 @@ class Order(models.Model):
 
     delivery_cost = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     status = models.CharField(max_length=100)
-
-
 
     @property
     def totalCost(self) -> Decimal:

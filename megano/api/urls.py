@@ -9,15 +9,15 @@ urlpatterns = [
     path('products/limited', views.ProductLimitedView.as_view()),  # DONE
     path('sales', views.SalesView.as_view()),  # DONE
     path('basket', views.BasketView.as_view()),  # DONE
-    path('orders', views.OrdersView.as_view()),  #
+    path('orders', views.OrdersListCreateView.as_view()),  #
     path('sign-in', views.signIn),  # DONE
-    path('sign-up', views.signUp),
-    path('sign-out', views.signOut),  # DONE
+    path('sign-up', views.RegisterView.as_view()),  # DONE
+    path('sign-out', views.log_out),  # DONE
     path('product/<int:id>', views.ProductView.as_view()),  # DONE
     path('product/<int:id>/reviews', views.ReviewView.as_view()),  # DONE
     path('tags', views.TagsView.as_view()),  # DONE
     path('profile', views.ProfileView.as_view()),  # DONE
-    path('profile/password', views.profilePassword),
+    path('profile/password', views.ChangePasswordView.as_view()),  # DONE
     path('profile/avatar', views.AvatarView.as_view()),  # DONE
     path('order/<int:id>', views.order),  #
     path('payment/<int:id>', views.payment),
