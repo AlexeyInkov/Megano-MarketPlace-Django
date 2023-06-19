@@ -181,7 +181,6 @@ class OrderSerializer(serializers.ModelSerializer):
         return instance.totalCost
 
     createdAt = serializers.DateTimeField(format='%Y-%m-%d %H:%M')
-    products = ProductShortSerializer(many=True, required=False)
     totalCost = serializers.SerializerMethodField()
 
     class Meta:
@@ -198,9 +197,23 @@ class OrderSerializer(serializers.ModelSerializer):
             "status",
             "city",
             "address",
-            "products",
             "user"
         ]
+
+    def update(self, instance, validated_data):
+        instance.fullName = validated_data.get('fullName', instance.fullName)
+        instance.email = validated_data.get('email', instance.email)
+        instance.phone = validated_data.get('phone', instance.phone)
+
+        instance.deliveryType = validated_data.get('deliveryType', instance.deliveryType)
+        instance.city = validated_data.get('city', instance.city)
+        instance.address = validated_data.get('address', instance.address)
+
+        instance.paymentType = validated_data.get('paymentType', instance.paymentType)
+        instance.status = 'не оплачен'
+
+        instance.save()
+        return instance
 
 
 class OrderProductSerializer(serializers.ModelSerializer):

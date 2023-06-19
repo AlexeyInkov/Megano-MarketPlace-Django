@@ -20,7 +20,7 @@ class Image(models.Model):
 class Profile(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile')
     fullName = models.CharField(max_length=50, null=True, blank=True)
-    email = models.EmailField(max_length=50, null=True, blank=True)
+    email = models.EmailField(max_length=50, null=True, blank=True, unique=True)
     phone = models.CharField(max_length=15, null=True, blank=True)
     avatar = models.ForeignKey(Image, on_delete=models.CASCADE, null=True, blank=True, related_name='avatar')
 
@@ -67,11 +67,11 @@ class Product(models.Model):
     date = models.DateTimeField(auto_now_add=True)
     title = models.CharField(max_length=100)
     freeDelivery = models.BooleanField(default=False)
-    images = models.ManyToManyField(Image, related_name='products', default=[])
+    images = models.ManyToManyField(Image, related_name='product', default=[])
     rating = models.FloatField(default=0)
-    tags = models.ManyToManyField(Tag, related_name='products', default=[], blank=True)
+    tags = models.ManyToManyField(Tag, related_name='product', default=[], blank=True)
     fullDescription = models.TextField(null=True, blank=True)
-    specifications = models.ManyToManyField(Specification, related_name='products', default=[], blank=True)
+    specifications = models.ManyToManyField(Specification, related_name='product', default=[], blank=True)
     sold = models.IntegerField(default=0)
     limited_edition = models.BooleanField(default=False)
 
@@ -86,10 +86,6 @@ class Product(models.Model):
         if len(queryset) == 0:
             return 0
         return sum(review.rate for review in queryset) / len(queryset)
-
-    # def reviews(self):
-    #     queryset = Review.objects.filter(product=self.pk)
-    #     return len(queryset)
 
     def __call__(self, *args, **kwargs):
         self.rating = self.get_rating
@@ -118,15 +114,15 @@ class Sale(models.Model):
 
 
 class Order(models.Model):
-    DELIVERY_CHOICES = [
-        ('reg', 'Regular'),
-        ('exp', 'Express'),
-        ('free', 'Free')
-    ]
-    PAYMENT_CHOICES = [
-        ('card', 'Bank Card'),
-        ('cash', 'From random account')
-    ]
+    # DELIVERY_CHOICES = [
+    #     ('reg', 'Regular'),
+    #     ('exp', 'Express'),
+    #     ('free', 'Free')
+    # # ]
+    # PAYMENT_CHOICES = [
+    #     ('card', 'Bank Card'),
+    #     ('cash', 'From random account')
+    # ]
 
     createdAt = models.DateTimeField(auto_now_add=True)
 
@@ -135,15 +131,11 @@ class Order(models.Model):
     phone = models.CharField(max_length=16, null=True, blank=True)
     email = models.EmailField(null=True, blank=True)
 
-    deliveryType = models.CharField(max_length=4, choices=DELIVERY_CHOICES, default='reg')
+    deliveryType = models.CharField(max_length=10, default='reg')  # , choices=DELIVERY_CHOICES)
     city = models.CharField(max_length=50, null=True, blank=True)
     address = models.CharField(max_length=255, null=True, blank=True)
 
-    paymentType = models.CharField(
-        max_length=4,
-        choices=PAYMENT_CHOICES,
-        default='card'
-    )
+    paymentType = models.CharField(max_length=20, default='online')  # ,choices=PAYMENT_CHOICES,)
 
     delivery_cost = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     status = models.CharField(max_length=100)

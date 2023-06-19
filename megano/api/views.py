@@ -28,7 +28,7 @@ from .models import (
     Tag,
     Review,
     Profile,
-    Sale, Order
+    Sale, Order, OrderProduct
 )
 from .serializers import (
     CatalogSerializer,
@@ -204,37 +204,6 @@ class BasketView(GenericAPIView):
         return JsonResponse({})
 
 
-# def orders(request):
-# 	if (request.method == "POST"):
-# 		data = [
-# 			{
-# 			"id": 16,
-# 			"category": 55,
-# 			"price": 500.67,
-# 			"count": 12,
-# 			"date": "Thu Feb 09 2023 21:39:52 GMT+0100 (Central European Standard Time)",
-# 			"title": "video card",
-# 			"description": "description of the product",
-# 			"freeDelivery": True,
-# 			"images": [
-# 					{
-# 						"src": "https://proprikol.ru/wp-content/uploads/2020/12/kartinki-ryabchiki-14.jpg",
-# 						"alt": "hello alt",
-# 					}
-# 			 ],
-# 			 "tags": [
-# 					{
-# 						"id": 0,
-# 						"name": "Hello world"
-# 					}
-# 			 ],
-# 				"reviews": 5,
-# 				"rating": 4.6
-# 			}
-# 		]
-# 		return JsonResponse(data, safe=False)
-
-
 def signIn(request):
     if request.method == "POST":
         old_basket = Basket(request)
@@ -308,7 +277,7 @@ class ReviewView(CreateAPIView):
     def post(self, request, *args, **kwargs):
         request.data['product'] = kwargs['id']
         response = self.create(request, *args, **kwargs)
-        product = Product.objects.get(kwargs['id'])
+        product = Product.objects.get(id=kwargs['id'])
         product.save()
         return response
 
@@ -353,18 +322,50 @@ class ChangePasswordView(GenericAPIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-class OrdersListCreateView(ListModelMixin, GenericAPIView):
-    serializer_class = OrderSerializer
-
-    def get_queryset(self):
-        return Order.objects.filter(user=self.request.user)
+class OrdersListCreateView(GenericAPIView):
 
     def get(self, request, *args, **kwargs):
-        return self.list(request, *args, **kwargs)
+        orders = Order.objects.prefetch_related('products').filter(user=self.request.user)
+        data_orders = []
+        for order in orders:
+            print(order.products)
+
+
+        #     order_products = OrderProduct.objects.filter(order=order)
+        #     data_products = []
+        #     print(order_products)
+        #     for order_product in order_products:
+        #         print(order_product.product_id)
+        #         product = Product.objects.get(id=order_product.product_id)
+        #         print(product)
+        #         serialised = ProductShortSerializer(
+        #             product,
+        #             data={
+        #                 'count': order_product.count,
+        #                 'price': order_product.price
+        #             },
+        #             partial=True
+        #         )
+        #         if serialised.is_valid():
+        #             data_products.append(serialised.data)
+        #             print(serialised.data)
+        #     print(order)
+        #     serialised = OrderSerializer(order, data={})  # , data={'products': data_products}, partial=True)
+        #     print(serialised)
+        #     if serialised.is_valid():
+        #         print('working')
+        #         data_orders.append(serialised.data)
+        #         print(serialised.data)
+        return JsonResponse(data_orders, safe=False)
 
     def post(self, request, *args, **kwargs):
         if request.user.is_authenticated:
-            order_serializer = OrderSerializer(data={'user': request.user.pk}, partial=True)
+            order_serializer = OrderSerializer(
+                data={
+                    'user': request.user.pk,
+                    'status': 'не оформлен'
+                },
+                partial=True)
             if order_serializer.is_valid():
                 order_serializer.save()
             for product in request.data:
@@ -383,54 +384,46 @@ class OrdersListCreateView(ListModelMixin, GenericAPIView):
         return redirect('/login/')
 
 
-def order(request, id):
-    if(request.method == 'GET'):
-        data = {
-            "id": 16,
-            "createdAt": "2023-05-05 12:12",
-            "fullName": "Annoying Orange",
-            "email": "no-reply@mail.ru",
-            "phone": "88002000600",
-            "deliveryType": "free",
-            "paymentType": "online",
-            "totalCost": 567.8,
-            "status": "accepted",
-            "city": "Moscow",
-            "address": "red square 1",
-            "products": [
-                {
-                    "id": 123,
-                    "category": 55,
-                    "price": 500.67,
-                    "count": 12,
-                    "date": "Thu Feb 09 2023 21:39:52 GMT+0100 (Central European Standard Time)",
-                    "title": "video card",
-                    "description": "description of the product",
-                    "freeDelivery": True,
-                    "images": [
-                        {
-                            "src": "https://proprikol.ru/wp-content/uploads/2020/12/kartinki-ryabchiki-14.jpg",
-                            "alt": "Image alt string"
-                        }
-                    ],
-                    "tags": [
-                        {
-                            "id": 12,
-                            "name": "Gaming"
-                        }
-                    ],
-                    "reviews": 5,
-                    "rating": 4.6
+class OrderUpdateView(GenericAPIView):
+    def get(self, request, id):
+        order = Order.objects.get(id=id)
+        products = []
+        for order_product in OrderProduct.objects.filter(order=order):
+            product = Product.objects.get(id=order_product.product_id)
+            serialised = ProductShortSerializer(
+                product,
+                data={
+                    'count': order_product.count,
+                    'price': order_product.price
                 },
-            ]
+                partial=True
+            )
+            if serialised.is_valid():
+                products.append(serialised.data)
+        data = {
+            "id": order.id,
+            "createdAt": order.createdAt,
+            "fullName": order.fullName or request.user.profile.fullName,
+            "email": order.email or request.user.profile.email,
+            "phone": order.phone or request.user.profile.phone,
+            "deliveryType": order.deliveryType,
+            "paymentType": order.paymentType,
+            "totalCost": order.totalCost,
+            "status": order.status,
+            "city": order.city,
+            "address": order.address,
+            "products": products
         }
         return JsonResponse(data)
 
-    elif(request.method == 'POST'):
-        data = { "orderId": 16 }
-        return JsonResponse(data)
+    def post(self, request, id):
+        request.data['id'] = request.data['orderId']
+        order = Order.objects.get(id=request.data['id'])
+        serialized = OrderSerializer(order, data=request.data, partial=True)
+        if serialized.is_valid():
+            serialized.save()
+        return JsonResponse({"orderId": request.data['id']})
 
-    return HttpResponse(status=500)
 
 def payment(request, id):
     print('qweqwewqeqwe', id)
