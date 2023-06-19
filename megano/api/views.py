@@ -238,7 +238,6 @@ class BasketView(GenericAPIView):
 def signIn(request):
     if request.method == "POST":
         old_basket = Basket(request)
-        print('old-\n', old_basket)
         body = json.loads(request.body)
         username = body['username']
         password = body['password']
@@ -246,9 +245,7 @@ def signIn(request):
         if user is not None:
             login(request, user)
             new_basket = Basket(request)
-            print('new -\n', new_basket)
             new_basket.merge_baskets(old_basket)
-            print('2 curt -\n', old_basket, '\n', new_basket)
             return HttpResponse(status=200)
         else:
             return HttpResponse(status=500)

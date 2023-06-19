@@ -60,4 +60,5 @@ class Basket(object):
         """Перенос анонимной корзины в корзину зарегистрированного"""
         for item in old:
             self.basket[str(item['product'].pk)] = {'count': item['count'], 'price': item['price']}
+        old.clear()
         self.save()
