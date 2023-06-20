@@ -140,10 +140,11 @@ class Order(models.Model):
     delivery_cost = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     status = models.CharField(max_length=100)
 
+
     @property
     def totalCost(self) -> Decimal:
         """Метод получения общей стоимости товаров в заказе"""
-        return Decimal(sum(product.get_cost() for product in self.products.all()))
+        return sum(product.get_cost() for product in self.products.all()) + self.delivery_cost
 
 
 class OrderProduct(models.Model):
@@ -156,5 +157,14 @@ class OrderProduct(models.Model):
         return str(self.id)
 
     def get_cost(self):
-        print(self.price * self.count)
         return self.price * self.count
+
+
+class Payment(models.Model):
+    order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name='payment')
+    number = models.CharField(max_length=8)
+    # month = models.CharField(max_length=2)
+    # year = models.CharField(max_length=2)
+    # code = models.CharField(max_length=3)
+    # name = models.CharField(max_length=25)
+    # error = models.CharField(max_length=20)

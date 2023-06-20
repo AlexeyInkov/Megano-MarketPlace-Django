@@ -28,7 +28,10 @@ from .models import (
     Tag,
     Review,
     Profile,
-    Sale, Order, OrderProduct
+    Sale,
+    Order,
+    OrderProduct,
+    Payment
 )
 from .serializers import (
     CatalogSerializer,
@@ -38,7 +41,12 @@ from .serializers import (
     ProductFullSerializer,
     ProfileSerializer,
     SaleSerializer,
-    AvatarSerializer, OrderSerializer, OrderProductSerializer, ChangePasswordSerializer, UserSerializer
+    AvatarSerializer,
+    OrderSerializer,
+    OrderProductSerializer,
+    ChangePasswordSerializer,
+    UserSerializer,
+    PaymentSerializer
 )
 from .servises.shop import Pagination
 
@@ -363,7 +371,7 @@ class OrdersListCreateView(GenericAPIView):
             order_serializer = OrderSerializer(
                 data={
                     'user': request.user.pk,
-                    'status': 'не оформлен'
+                    'status': 'не подтвержден'
                 },
                 partial=True)
             if order_serializer.is_valid():
@@ -381,7 +389,7 @@ class OrdersListCreateView(GenericAPIView):
                 basket = Basket(request)
                 basket.clear()
             return JsonResponse({"orderId": order_serializer.data['id']})
-        return redirect('/login/')
+        return redirect('/sign-in/')  # Нашел login
 
 
 class OrderUpdateView(GenericAPIView):
@@ -425,9 +433,28 @@ class OrderUpdateView(GenericAPIView):
         return JsonResponse({"orderId": request.data['id']})
 
 
-def payment(request, id):
-    print('qweqwewqeqwe', id)
-    return HttpResponse(status=200)
+class PaymentView(CreateAPIView):
+    serializer_class = PaymentSerializer
+    queryset = Payment.objects.all()
+    def post(self, request, id):
+        order = Order.objects.get(id=id)
+        value: str = request.data['number']
+        if value.isdigit() and len(value) == 8 and int(value) % 2 == 0 and value[7] != '0':
+            print('yes')
+            request.data['order'] = id
+            print(order.payment)
+            if order.payment is None:
+                return self.create(request)
+            payment = Payment.objects.get(order=id)
+            payment.number = value
+            payment.save()
+            order.status = 'Оплачено нe сразу'
+            order.save()
+            return HttpResponse(status=200)
+        print('Ошибка оплаты')
+        order.status = 'Ошибка оплаты'
+        order.save()
+        return HttpResponse(status=500)
 
 
 class AvatarView(UpdateModelMixin, GenericAPIView):

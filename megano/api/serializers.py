@@ -13,7 +13,7 @@ from .models import (
     Sale,
     Review,
     Profile,
-    Specification, Order, OrderProduct,
+    Specification, Order, OrderProduct, Payment,
 )
 
 
@@ -192,6 +192,7 @@ class OrderSerializer(serializers.ModelSerializer):
             "email",
             "phone",
             "deliveryType",
+            "delivery_cost",
             "paymentType",
             "totalCost",
             "status",
@@ -210,7 +211,7 @@ class OrderSerializer(serializers.ModelSerializer):
         instance.address = validated_data.get('address', instance.address)
 
         instance.paymentType = validated_data.get('paymentType', instance.paymentType)
-        instance.status = 'не оплачен'
+        instance.status = 'Подтвержден, но не оплачен'
 
         instance.save()
         return instance
@@ -225,3 +226,20 @@ class OrderProductSerializer(serializers.ModelSerializer):
             'price',
             'count'
         ]
+
+
+class PaymentSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Payment
+        fields = [
+            'order',
+            'number'
+        ]
+
+    def create(self, validated_data):
+        order = validated_data['order']
+        payment = Payment.objects.create(**validated_data)
+        order.status = 'Оплачено'
+        order.save()
+        return payment
+
