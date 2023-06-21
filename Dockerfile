@@ -12,6 +12,8 @@ COPY diploma-frontend ./diploma-frontend
 COPY pyproject.toml ./
 COPY poetry.lock ./
 RUN poetry update
+RUN python ./diploma-frontend/setup.py sdist
+RUN pip install ./diploma-frontend/dist/diploma-frontend-0.6.tar.gz
 
 COPY megano .
 
