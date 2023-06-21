@@ -13,7 +13,7 @@ from .models import (
     Sale,
     Review,
     Profile,
-    Specification,
+    Specification, Order, OrderProduct,
 )
 
 
@@ -47,7 +47,6 @@ class AvatarSerializer(serializers.ModelSerializer):
 class ProfileSerializer(serializers.ModelSerializer):
     avatar = ImageSerializer(read_only=True)
 
-
     class Meta:
         model = Profile
         fields = 'user', 'fullName', 'email', 'phone', 'avatar'
@@ -66,13 +65,13 @@ class UserSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ['username', 'profile']
+        fields = ['username', 'password', 'profile']
 
-    def create(self, validated_data):
-        profile_data = validated_data.pop('profile')
-        user = User.objects.create(**validated_data)
-        Profile.objects.create(user=user, **profile_data)
-        return user
+
+class ChangePasswordSerializer(serializers.Serializer):
+    model = User
+    currentPassword = serializers.CharField(required=True)
+    newPassword = serializers.CharField(required=True)
 
 
 class SpecificationSerializer(serializers.ModelSerializer):
@@ -175,3 +174,54 @@ class CatalogSerializer(serializers.ModelSerializer):
         model = Category
         fields = 'id', 'title', 'image', 'subcategories'
         depth = 2
+
+
+class OrderSerializer(serializers.ModelSerializer):
+    def get_totalCost(self, instance):
+        return instance.totalCost
+
+    createdAt = serializers.DateTimeField(format='%Y-%m-%d %H:%M')
+    totalCost = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Order #.products.through
+        fields = [
+            "id",
+            "createdAt",
+            "fullName",
+            "email",
+            "phone",
+            "deliveryType",
+            "paymentType",
+            "totalCost",
+            "status",
+            "city",
+            "address",
+            "user"
+        ]
+
+    def update(self, instance, validated_data):
+        instance.fullName = validated_data.get('fullName', instance.fullName)
+        instance.email = validated_data.get('email', instance.email)
+        instance.phone = validated_data.get('phone', instance.phone)
+
+        instance.deliveryType = validated_data.get('deliveryType', instance.deliveryType)
+        instance.city = validated_data.get('city', instance.city)
+        instance.address = validated_data.get('address', instance.address)
+
+        instance.paymentType = validated_data.get('paymentType', instance.paymentType)
+        instance.status = 'не оплачен'
+
+        instance.save()
+        return instance
+
+
+class OrderProductSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = OrderProduct
+        fields = [
+            'order',
+            'product',
+            'price',
+            'count'
+        ]

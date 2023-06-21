@@ -1,6 +1,6 @@
 from django.conf import settings
 from decimal import Decimal
-from .models import Product
+from api.models import Product
 
 
 class Basket(object):
@@ -14,14 +14,13 @@ class Basket(object):
             basket = self.session[settings.BASKET_SESSION_ID] = {}
         self.basket = basket
 
-    def change(self, product, count):
+    def change(self, product: Product, count: int) -> None:
         """
         Добавить продукт в корзину или обновить его количество.
         """
-        product_id = str(product.id)
+        product_id = str(product.pk)
         if product_id not in self.basket:
-            self.basket[product_id] = {'count': count,
-                                     'price': str(product.price)}
+            self.basket[product_id] = {'count': count, 'price': product.price}
         else:
             self.basket[product_id]['count'] += count
         if self.basket[product_id]['count'] == 0:
@@ -29,9 +28,7 @@ class Basket(object):
         self.save()
 
     def save(self):
-        # Обновление сессии cart
         self.session[settings.BASKET_SESSION_ID] = self.basket
-        # Отметить сеанс как "измененный", чтобы убедиться, что он сохранен
         self.session.modified = True
 
     def remove(self, product_id):
@@ -53,5 +50,15 @@ class Basket(object):
             self.basket[str(product.id)]['product'] = product
 
         for item in self.basket.values():
-            item['price'] = Decimal(item['price'])
             yield item
+
+    def clear(self) -> None:
+        """очистить корзину"""
+        return self.basket.clear()
+
+    def merge_baskets(self, old):
+        """Перенос анонимной корзины в корзину зарегистрированного"""
+        for item in old:
+            self.basket[str(item['product'].pk)] = {'count': item['count'], 'price': item['price']}
+        old.clear()
+        self.save()

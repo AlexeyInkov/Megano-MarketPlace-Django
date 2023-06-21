@@ -1,5 +1,4 @@
-
-
+from _decimal import Decimal
 from django.contrib.auth.models import User
 from django.db import models
 
@@ -21,7 +20,7 @@ class Image(models.Model):
 class Profile(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile')
     fullName = models.CharField(max_length=50, null=True, blank=True)
-    email = models.EmailField(max_length=50, null=True, blank=True)
+    email = models.EmailField(max_length=50, null=True, blank=True, unique=True)
     phone = models.CharField(max_length=15, null=True, blank=True)
     avatar = models.ForeignKey(Image, on_delete=models.CASCADE, null=True, blank=True, related_name='avatar')
 
@@ -63,16 +62,16 @@ class Specification(models.Model):
 class Product(models.Model):
 
     category = models.ForeignKey(Category, on_delete=models.PROTECT)
-    price = models.DecimalField(default=0, max_digits=10, decimal_places=2)
+    price = models.FloatField(default=0)
     count = models.IntegerField(default=0)
     date = models.DateTimeField(auto_now_add=True)
     title = models.CharField(max_length=100)
     freeDelivery = models.BooleanField(default=False)
-    images = models.ManyToManyField(Image, related_name='products', default=[])
+    images = models.ManyToManyField(Image, related_name='product', default=[])
     rating = models.FloatField(default=0)
-    tags = models.ManyToManyField(Tag, related_name='products', default=[], blank=True)
+    tags = models.ManyToManyField(Tag, related_name='product', default=[], blank=True)
     fullDescription = models.TextField(null=True, blank=True)
-    specifications = models.ManyToManyField(Specification, related_name='products', default=[], blank=True)
+    specifications = models.ManyToManyField(Specification, related_name='product', default=[], blank=True)
     sold = models.IntegerField(default=0)
     limited_edition = models.BooleanField(default=False)
 
@@ -87,10 +86,6 @@ class Product(models.Model):
         if len(queryset) == 0:
             return 0
         return sum(review.rate for review in queryset) / len(queryset)
-
-    # def reviews(self):
-    #     queryset = Review.objects.filter(product=self.pk)
-    #     return len(queryset)
 
     def __call__(self, *args, **kwargs):
         self.rating = self.get_rating
@@ -119,12 +114,47 @@ class Sale(models.Model):
 
 
 class Order(models.Model):
-    create_at = models.DateField(auto_now_add=True)
+    # DELIVERY_CHOICES = [
+    #     ('reg', 'Regular'),
+    #     ('exp', 'Express'),
+    #     ('free', 'Free')
+    # # ]
+    # PAYMENT_CHOICES = [
+    #     ('card', 'Bank Card'),
+    #     ('cash', 'From random account')
+    # ]
+
+    createdAt = models.DateTimeField(auto_now_add=True)
+
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='user')
-    delivery_type = models.CharField(max_length=100)
-    payment_type = models.CharField(max_length=100)
-    total_cost = models.FloatField()
+    fullName = models.CharField(max_length=100, null=True, blank=True)
+    phone = models.CharField(max_length=16, null=True, blank=True)
+    email = models.EmailField(null=True, blank=True)
+
+    deliveryType = models.CharField(max_length=10, default='reg')  # , choices=DELIVERY_CHOICES)
+    city = models.CharField(max_length=50, null=True, blank=True)
+    address = models.CharField(max_length=255, null=True, blank=True)
+
+    paymentType = models.CharField(max_length=20, default='online')  # ,choices=PAYMENT_CHOICES,)
+
+    delivery_cost = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     status = models.CharField(max_length=100)
-    city = models.CharField(max_length=100)
-    address = models.CharField(max_length=250)
-    products = models.ManyToManyField(Product, related_name='orders')
+
+    @property
+    def totalCost(self) -> Decimal:
+        """Метод получения общей стоимости товаров в заказе"""
+        return Decimal(sum(product.get_cost() for product in self.products.all()))
+
+
+class OrderProduct(models.Model):
+    order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name='products')
+    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='order_products')
+    price = models.DecimalField(max_digits=10, decimal_places=2)
+    count = models.PositiveIntegerField(default=1)
+
+    def __str__(self):
+        return str(self.id)
+
+    def get_cost(self):
+        print(self.price * self.count)
+        return self.price * self.count
