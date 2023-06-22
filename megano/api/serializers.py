@@ -13,7 +13,7 @@ from .models import (
     Sale,
     Review,
     Profile,
-    Specification, Order, OrderProduct, Payment,
+    Specification, Order, OrderProduct, Payment, StatusOrder,
 )
 
 
@@ -177,11 +177,10 @@ class CatalogSerializer(serializers.ModelSerializer):
 
 
 class OrderSerializer(serializers.ModelSerializer):
-    def get_totalCost(self, instance):
-        return instance.totalCost
 
     createdAt = serializers.DateTimeField(format='%Y-%m-%d %H:%M')
     totalCost = serializers.SerializerMethodField()
+    status = serializers.SerializerMethodField()
 
     class Meta:
         model = Order #.products.through
@@ -201,6 +200,12 @@ class OrderSerializer(serializers.ModelSerializer):
             "user"
         ]
 
+    def get_totalCost(self, instance):
+        return instance.totalCost
+
+    def get_status(self, instance):
+        return instance.status.status
+
     def update(self, instance, validated_data):
         instance.fullName = validated_data.get('fullName', instance.fullName)
         instance.email = validated_data.get('email', instance.email)
@@ -211,7 +216,7 @@ class OrderSerializer(serializers.ModelSerializer):
         instance.address = validated_data.get('address', instance.address)
 
         instance.paymentType = validated_data.get('paymentType', instance.paymentType)
-        instance.status = 'Подтвержден, но не оплачен'
+        instance.status = StatusOrder.objects.get(id=2)
 
         instance.save()
         return instance
@@ -233,13 +238,15 @@ class PaymentSerializer(serializers.ModelSerializer):
         model = Payment
         fields = [
             'order',
-            'number'
+            'number',
+            'error'
+
         ]
 
     def create(self, validated_data):
         order = validated_data['order']
         payment = Payment.objects.create(**validated_data)
-        order.status = 'Оплачено'
+        order.status = StatusOrder.objects.get(id=3)
         order.save()
         return payment
 

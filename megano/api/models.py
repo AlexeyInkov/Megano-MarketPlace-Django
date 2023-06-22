@@ -171,4 +171,4 @@ class Payment(models.Model):
     # year = models.CharField(max_length=2)
     # code = models.CharField(max_length=3)
     # name = models.CharField(max_length=25)
-    # error = models.CharField(max_length=20)
+    error = models.CharField(max_length=20)

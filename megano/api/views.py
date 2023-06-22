@@ -376,37 +376,31 @@ class OrdersListCreateView(GenericAPIView):
     permission_classes = [IsAuthenticated, IsAdminUser]
 
     def get(self, request, *args, **kwargs):
-        orders = Order.objects.prefetch_related('products').filter(user=self.request.user)
+        orders = (
+            Order.objects.
+            # select_related('statu_order').
+            prefetch_related('order_products').
+            filter(user=self.request.user, status__in=[2, 3])
+        )
         data_orders = []
         for order in orders:
-            print(order.products)
-
-
-        #     order_products = OrderProduct.objects.filter(order=order)
-        #     data_products = []
-        #     print(order_products)
-        #     for order_product in order_products:
-        #         print(order_product.product_id)
-        #         product = Product.objects.get(id=order_product.product_id)
-        #         print(product)
-        #         serialised = ProductShortSerializer(
-        #             product,
-        #             data={
-        #                 'count': order_product.count,
-        #                 'price': order_product.price
-        #             },
-        #             partial=True
-        #         )
-        #         if serialised.is_valid():
-        #             data_products.append(serialised.data)
-        #             print(serialised.data)
-        #     print(order)
-        #     serialised = OrderSerializer(order, data={})  # , data={'products': data_products}, partial=True)
-        #     print(serialised)
-        #     if serialised.is_valid():
-        #         print('working')
-        #         data_orders.append(serialised.data)
-        #         print(serialised.data)
+            order_products = order.get_products(order)
+            data_products = []
+            for order_product in order_products:
+                product = Product.objects.get(id=order_product.product_id)
+                serialised = ProductShortSerializer(
+                    product,
+                    data={
+                        'count': order_product.count,
+                        'price': order_product.price
+                    },
+                    partial=True
+                )
+                if serialised.is_valid():
+                    data_products.append(serialised.data)
+            serialised = OrderSerializer(order, data={'products': data_products}, partial=True)
+            if serialised.is_valid():
+                data_orders.append(serialised.data)
         return JsonResponse(data_orders, safe=False)
 
     def post(self, request, *args, **kwargs):
@@ -414,7 +408,7 @@ class OrdersListCreateView(GenericAPIView):
             order_serializer = OrderSerializer(
                 data={
                     'user': request.user.pk,
-                    'status': 'не подтвержден'
+                    'status': 1
                 },
                 partial=True)
             if order_serializer.is_valid():
@@ -460,7 +454,7 @@ class OrderUpdateView(GenericAPIView):
             "deliveryType": order.deliveryType,
             "paymentType": order.paymentType,
             "totalCost": order.totalCost,
-            "status": order.status,
+            "status": order.status.status,
             "city": order.city,
             "address": order.address,
             "products": products
@@ -496,8 +490,8 @@ class PaymentView(CreateAPIView):
             order.save()
             return HttpResponse(status=200)
         print('Ошибка оплаты')
-        order.status = 'Ошибка оплаты'
-        order.save()
+        request.data['error'] = 'Ошибка оплаты'
+
         return HttpResponse(status=500)
 
 
