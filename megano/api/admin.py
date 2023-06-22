@@ -8,7 +8,7 @@ from .models import (
     Review,
     Specification,
     Sale,
-    Product, Order
+    Product, Order, StatusOrder
 )
 
 
@@ -38,5 +38,6 @@ admin.site.register(Image, admin.ModelAdmin)
 admin.site.register(Review, admin.ModelAdmin)
 admin.site.register(Specification, admin.ModelAdmin)
 admin.site.register(Order, admin.ModelAdmin)
+admin.site.register(StatusOrder, admin.ModelAdmin)
 
 
