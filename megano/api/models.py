@@ -136,7 +136,7 @@ class Order(models.Model):
 
     paymentType = models.CharField(max_length=20, default='online')
 
-    delivery_cost = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    delivery_cost = models.FloatField(default=0)
     status = models.ForeignKey(StatusOrder, on_delete=models.CASCADE, related_name='orders')
 
     def get_products(self, obj):
@@ -154,7 +154,7 @@ class Order(models.Model):
 class OrderProduct(models.Model):
     order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name='order_products')
     product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='order_products')
-    price = models.DecimalField(max_digits=10, decimal_places=2)
+    price = models.FloatField(default=0)
     count = models.PositiveIntegerField(default=1)
 
     def __str__(self):

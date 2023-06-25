@@ -1,6 +1,6 @@
-from .basket import BasketAnonim
+from .basket import Basket
 
 
 def cart(request):
-    return {'basket': BasketAnonim(request)}
+    return {'basket': Basket(request)}
 

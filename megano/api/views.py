@@ -7,12 +7,12 @@ import random
 from decimal import *
 
 from django.contrib.auth.models import User
-from django.http import JsonResponse
+from django.http import JsonResponse, HttpResponseRedirect
 import json
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth import get_user_model
 from django.http import HttpResponse
-from django.shortcuts import redirect
+from django.shortcuts import redirect, reverse
 from rest_framework import status
 from rest_framework.filters import OrderingFilter
 from rest_framework.generics import GenericAPIView, RetrieveAPIView, CreateAPIView, RetrieveUpdateAPIView, ListAPIView, \
@@ -21,9 +21,8 @@ from rest_framework.mixins import ListModelMixin, UpdateModelMixin, RetrieveMode
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from rest_framework.response import Response
-from rest_framework.reverse import reverse_lazy
 
-from api.services.basket import BasketAnonim, BasketService
+from api.services.basket import Basket
 
 from .models import (
     Category,
@@ -34,7 +33,7 @@ from .models import (
     Sale,
     Order,
     OrderProduct,
-    Payment
+    Payment, StatusOrder
 )
 from .serializers import (
     CatalogSerializer,
@@ -117,15 +116,20 @@ class AvatarView(UpdateModelMixin, GenericAPIView):
 
 def signIn(request):
     if request.method == "POST":
-        old_basket = BasketAnonim(request)
         body = json.loads(request.body)
         username = body['username']
         password = body['password']
+        basket = Basket(request)
         user = authenticate(request, username=username, password=password)
         if user is not None:
             login(request, user)
-            new_basket = BasketService(request)
-            new_basket.merge_baskets(old_basket)
+            order = Order.objects.filter(user=user, status=StatusOrder.objects.get(id=1)).first()
+            if not order:
+                order = Order.objects.create(user=request.user, status=StatusOrder.objects.get(id=1)).save()
+                basket.copy_to_order(order)
+            else:
+                basket.merge(user, order)
+
             return HttpResponse(status=200)
         else:
             return HttpResponse(status=500)
@@ -139,18 +143,18 @@ class RegisterView(GenericAPIView):
         for data in data_:
             data = json.loads(data)
         """Преобразую странный формат данных запроса"""
-        old_basket = BasketAnonim(request)
         user = User.objects.create(username=data['username'])
         user.set_password(data['password'])
         user.save()
-        profile = Profile.objects.create(user=user, fullName=data['name'])
+        Profile.objects.create(user=user, fullName=data['name'])
         username = data['username']
         password = data['password']
+        basket = Basket(request)
         user = authenticate(request, username=username, password=password)
         if user is not None:
+            order = Order.objects.create(user=user, status=StatusOrder.objects.get(id=1)).save()
+            basket.copy_to_order(user, order)
             login(request, user)
-            new_basket = BasketService(request)
-            new_basket.merge_baskets(old_basket)
             return HttpResponse(status=200)
         return HttpResponse(status=500)
 
@@ -321,29 +325,25 @@ class ReviewView(CreateAPIView):
 
 class BasketView(GenericAPIView):
     def get(self, request):
-        basket = BasketService(request)
-        print('--------------basketview', type(basket))
-        print('-------------', isinstance(basket, Order))
-        if isinstance(basket, Order,):
-            data = []
-            for order_product in basket.get_products():
-                serializer = ProductShortSerializer(instance=order_product.product, data={'count': order_product.count})
-                data.append(serializer.data)
-        else:
-            data = []
-            for item in basket.get_goods():
-                product = ProductShortSerializer(instance=item['product']).data
-                product['count'] = item['count']
-                product['price'] = item['price']
-                data.append(product)
+        basket = Basket(request)
+        data = []
+        for item in basket:
+            product = ProductShortSerializer(instance=item['product']).data
+            product['count'] = item['count']
+            product['price'] = item['price']
+            data.append(product)
         return JsonResponse(data, safe=False)
 
     def post(self, request):
-        basket = BasketService(request)
+        basket = Basket(request)
         product = Product.objects.get(id=request.data['id'])
         count = int(request.data['count'])
-        price = product.price
-        basket.add_to_basket(product=product, count=count, price=price)
+        basket.change(user=request.user, product=product, count=count)
+        if request.user.is_authenticated:
+            order = Order.objects.filter(user=request.user, status=StatusOrder.objects.get(id=1)).get()
+            if not order:
+                order = Order.objects.create(user=request.user, status=StatusOrder.objects.get(id=1)).save()
+                basket.copy_to_order(order)
         serializer = ProductShortSerializer(
             instance=product,
             data=request.session['basket'][str(product.id)],
@@ -353,10 +353,16 @@ class BasketView(GenericAPIView):
             return JsonResponse(serializer.data)
 
     def delete(self, request):
+        basket = Basket(request)
         product = Product.objects.get(id=request.data['id'])
         count = - int(request.data['count'])
         price = product.price
-        BasketService.add_to_basket(product=product, count=count, price=price)
+        basket.change(user=request.user, product=product, count=count)
+        if request.user.is_authenticated:
+            order = Order.objects.filter(user=request.user, status=StatusOrder.objects.get(id=1)).get()
+            if not order:
+                order = Order.objects.create(user=request.user, status=StatusOrder.objects.get(id=1)).save()
+                basket.copy_to_order(order)
         data = request.session['basket'].get(str(product.id), None)
         if data:
             serializer = ProductShortSerializer(
@@ -378,7 +384,7 @@ class OrdersListCreateView(GenericAPIView):
     def get(self, request, *args, **kwargs):
         orders = (
             Order.objects.
-            # select_related('statu_order').
+            select_related('status_order').
             prefetch_related('order_products').
             filter(user=self.request.user, status__in=[2, 3])
         )
@@ -405,28 +411,9 @@ class OrdersListCreateView(GenericAPIView):
 
     def post(self, request, *args, **kwargs):
         if request.user.is_authenticated:
-            order_serializer = OrderSerializer(
-                data={
-                    'user': request.user.pk,
-                    'status': 1
-                },
-                partial=True)
-            if order_serializer.is_valid():
-                order_serializer.save()
-            for product in request.data:
-                data = {
-                    'order': order_serializer.data['id'],
-                    'product': product['id'],
-                    'price': product['price'],
-                    'count': product['count']
-                }
-                product_serializer = OrderProductSerializer(data=data)
-                if product_serializer.is_valid():
-                    product_serializer.save()
-                basket = BasketAnonim(request)
-                basket.clear()
-            return JsonResponse({"orderId": order_serializer.data['id']})
-        return reverse_lazy('api:login')  # Нашел login
+            order = Order.objects.filter(user=request.user, status=StatusOrder.objects.get(id=1)).get()
+            return JsonResponse({"orderId": order.id})
+        return redirect('api:login')
 
 
 class OrderUpdateView(GenericAPIView):
@@ -435,15 +422,17 @@ class OrderUpdateView(GenericAPIView):
         products = []
         for order_product in OrderProduct.objects.filter(order=order):
             product = Product.objects.get(id=order_product.product_id)
+            data = {
+                'count': order_product.count,
+                'price': order_product.price
+            }
             serialised = ProductShortSerializer(
                 product,
-                data={
-                    'count': order_product.count,
-                    'price': order_product.price
-                },
+                data=data,
                 partial=True
             )
             if serialised.is_valid():
+
                 products.append(serialised.data)
         data = {
             "id": order.id,
@@ -464,38 +453,37 @@ class OrderUpdateView(GenericAPIView):
     def post(self, request, id):
         request.data['id'] = request.data['orderId']
         order = Order.objects.get(id=request.data['id'])
+        order.status = 2
         serialized = OrderSerializer(order, data=request.data, partial=True)
         if serialized.is_valid():
             serialized.save()
-        return JsonResponse({"orderId": request.data['id']})
+            Basket(request).clear()
+            return JsonResponse({"orderId": request.data['id']})
 
 
 class PaymentView(CreateAPIView):
     serializer_class = PaymentSerializer
     queryset = Payment.objects.all()
 
+    def get(self, request, id):
+        order = Order.objects.get(id=id)
+        if order.payment is None:
+            return HttpResponse(status=200)
+        if order.status == 3:
+            return redirect("/history-order/")
+        return HttpResponse(status=200)
+
     def post(self, request, id):
         order = Order.objects.get(id=id)
-        value: str = request.data['number']
-        if value.isdigit() and len(value) == 8 and int(value) % 2 == 0 and value[7] != '0':
-            print('yes')
-            request.data['order'] = id
-            print(order.payment)
-            if order.payment is None:
+        if order.payment is None:
+            value = request.data['number']
+            if value.isdigit() and len(value) == 8 and int(value) % 2 == 0 and value[7] != '0':
+                request.data['order'] = id
+                request.data['value'] = value
+                request.data['error'] = 'нет'
+                order.status = 3
+                order.save()
                 return self.create(request)
-            payment = Payment.objects.get(order=id)
-            payment.number = value
-            payment.save()
-            order.status = 'Оплачено нe сразу'
+            order.status = StatusOrder.objects.get(id=4)
             order.save()
-            return HttpResponse(status=200)
-        print('Ошибка оплаты')
-        request.data['error'] = 'Ошибка оплаты'
-
-        return HttpResponse(status=500)
-
-
-
-
-
-
+        return HttpResponse(status=200)

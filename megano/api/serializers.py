@@ -1,10 +1,6 @@
-"""
-TODO
-настроить формат дат
-"""
-
 from django.contrib.auth.models import User
 from rest_framework import serializers
+
 from .models import (
     Category,
     Product,
@@ -13,7 +9,11 @@ from .models import (
     Sale,
     Review,
     Profile,
-    Specification, Order, OrderProduct, Payment, StatusOrder,
+    Specification,
+    Order,
+    OrderProduct,
+    Payment,
+    StatusOrder,
 )
 
 
@@ -50,7 +50,7 @@ class ProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = Profile
         fields = 'user', 'fullName', 'email', 'phone', 'avatar'
-        read_only_fields =['user']
+        read_only_fields = ['user']
 
     def update(self, instance, validated_data):
         instance.fullName = validated_data.get('fullName', instance.fullName)
@@ -147,7 +147,7 @@ class ProductShortSerializer(serializers.ModelSerializer):
 
     images = ImageSerializer(many=True, required=False)
     tags = TagSerializer(many=True, required=False)
-    reviews = serializers.SerializerMethodField(source=get_reviews)
+    reviews = serializers.SerializerMethodField()
 
     class Meta:
         model = Product
@@ -166,6 +166,15 @@ class ProductShortSerializer(serializers.ModelSerializer):
             'rating'
         ]
 
+    def get_reviews(self, instance):
+        return len(Review.objects.filter(product=instance.pk))
+
+    def update(self, instance, validated_data):
+        instance.count = validated_data.get('count', instance.count)
+        instance.price = validated_data.get('price', instance.price)
+        instance.save()
+        return instance
+
 
 class CatalogSerializer(serializers.ModelSerializer):
     image = ImageSerializer()
@@ -177,13 +186,12 @@ class CatalogSerializer(serializers.ModelSerializer):
 
 
 class OrderSerializer(serializers.ModelSerializer):
-
     createdAt = serializers.DateTimeField(format='%Y-%m-%d %H:%M')
     totalCost = serializers.SerializerMethodField()
     status = serializers.SerializerMethodField()
 
     class Meta:
-        model = Order #.products.through
+        model = Order
         fields = [
             "id",
             "createdAt",
@@ -249,4 +257,3 @@ class PaymentSerializer(serializers.ModelSerializer):
         order.status = StatusOrder.objects.get(id=3)
         order.save()
         return payment
-

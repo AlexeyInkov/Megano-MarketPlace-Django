@@ -95,7 +95,7 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
-                'api.services.context_processors.cart',
+                # 'api.services.context_processors.cart',
             ],
         },
     },
@@ -162,6 +162,12 @@ REST_FRAMEWORK = {
         "django_filters.rest_framework.DjangoFilterBackend",
     ],
 }
+
+LOGIN_REDIRECT_URL = '/'
+
+LOGOUT_REDIRECT_URL = '/'
+
+LOGIN_URL = '/sing_in/'
 
 BASKET_SESSION_ID = 'basket'
 

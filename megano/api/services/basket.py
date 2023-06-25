@@ -3,12 +3,15 @@ from typing import Union
 from django.conf import settings
 from decimal import Decimal
 
+from django.contrib.auth.models import User
 from django.shortcuts import get_object_or_404
 
 from api.models import Product, Order, OrderProduct, StatusOrder
 
 
-class BasketAnonim(object):
+
+
+class Basket(object):
     def __init__(self, request):
         """
         Инициализируем корзину
@@ -19,7 +22,7 @@ class BasketAnonim(object):
             basket = self.session[settings.BASKET_SESSION_ID] = {}
         self.basket = basket
 
-    def change(self, product: Product, count: int) -> None:
+    def change(self, user: User, product: Product, count: int) -> None:
         """
         Добавить продукт в корзину или обновить его количество.
         """
@@ -29,20 +32,28 @@ class BasketAnonim(object):
         else:
             self.basket[product_id]['count'] += count
         if self.basket[product_id]['count'] == 0:
-            self.remove(product_id)
+            self.remove(product_id, user)
+
         self.save()
+
 
     def save(self):
         self.session[settings.BASKET_SESSION_ID] = self.basket
         self.session.modified = True
 
-    def remove(self, product_id):
+    def remove(self, product_id, user):
         """
         Удаление товара из корзины.
         """
         if product_id in self.basket:
             del self.basket[product_id]
             self.save()
+            if user.is_authenticated:
+                order = Order.objects.filter(user=user, status=StatusOrder.objects.get(id=1)).get()
+                product = Product.objects.get(id=product_id)
+                order_product = OrderProduct.objects.filter(order=order, product=product)
+                if order_product:
+                    order_product.delete()
 
     def __iter__(self):
         """
@@ -55,7 +66,6 @@ class BasketAnonim(object):
             self.basket[str(product.id)]['product'] = product
             self.basket[str(product.id)]['category'] = product.category
         for item in self.basket.values():
-            item['price'] = Decimal(item['price'])
             item['total_price'] = item['price'] * item['count']
             yield item
 
@@ -71,98 +81,30 @@ class BasketAnonim(object):
         """очистить корзину"""
         return self.basket.clear()
 
+    def copy_to_basket(self, user: User, order: Order) -> None:
+        products = OrderProduct.objects.filter(order=order.pk)
+        for item in products:
+            product = Product.objects.get(id=item.product_id)
+            self.change(user, product, item.count)
 
-class BasketService:
-    """
-    Сервис корзины
-
-    add_to_cart: метод добавления товара в корзину
-    remove_from_cart: убирает товар из корзины
-    update_product: изменить количество товара в корзине и заменить продавца
-    get_goods: получение товаров из корзины
-    get_quantity: получение количества товаров в корзине
-    get_total_sum: получение общей суммы товаров в корзине
-    get_total_discounted_sum: получение общей суммы товаров в корзине со скидками
-    clear: очистка корзины
-    """
-
-    def __init__(self, request):
-        if request.user.is_authenticated:
-            print('Cоздаем Order корзину')
-            self.basket = Order.objects.filter(
-                user=request.user,
-                status=StatusOrder.objects.get(status='Корзина')).first()
-            if not self.basket:
-                self.basket = Order.object.create(
-                    user=request.user,
-                    status=StatusOrder.objects.get(status='Корзина'))
-        else:
-            print('Создаем SESSION корзину')
-            self.basket = BasketAnonim(request)
-
-    def remove_from_cart(self, product_id: int) -> None:
-        """
-        убрать товар из корзины
-
-        product_id: id товара
-        """
-        product = get_object_or_404(Product, id=product_id)
-        if isinstance(self.basket, Order):
-            cart_product = get_object_or_404(OrderProduct, order=self.basket)
-            cart_product.delete()
-            self.basket.save()
-        else:
-            self.basket.remove(product)
-
-    def add_to_basket(self, product, count: int, price: Decimal = 0) -> bool:
-        """
-        Изменить количество товара в корзине
-        quantity: новое количество
-        """
-        if isinstance(self.basket, Order):
-            cart_product = OrderProduct.objects.filter(order=self.basket, product=product).first()
-            if not cart_product:
-                cart_product = OrderProduct.objects.create(order=self.basket,
-                                                           product=product,
-                                                           count=count,
-                                                           price=product.price)
+    def copy_to_order(self, order: Order) -> None:
+        for key, item in self.basket.items():
+            order_product = OrderProduct.objects.filter(
+                order=order,
+                product=Product.objects.get(id=int(key)))
+            if order_product.exists():
+                instance = order_product.get()
+                instance.count = item['count']
+                instance.price = item['price']
+                instance.save()
             else:
-                cart_product.count += count
-                cart_product.save()
-                self.basket.save()
-        else:
-            self.basket.change(product, count)
+                OrderProduct.objects.create(
+                    order=order,
+                    product=item['product'],
+                    count=item['count'],
+                    price=item['price']
+                )
 
-    def get_goods(self) -> Union[OrderProduct, BasketAnonim]:
-        """получить товары из корзины"""
-        if isinstance(self.basket, BasketService):
-            return self.basket.order_products.all
-        return self.basket
-
-    def get_count(self) -> int:
-        """получить количество товаров в корзине"""
-        return len(self.basket)
-
-    def get_total_sum(self) -> Decimal:
-        """получить общую сумму заказа"""
-        if isinstance(self.basket, Order):
-            return self.basket.totalCost
-        return self.basket.get_totalCost()
-
-    def merge_baskets(self, other:BasketAnonim):
-        """Перенос анонимной корзины в корзину зарегистрированного"""
-        for item in other:
-            self.add_to_basket(item['product'], item['count'], )
-        other.clear()
-
-    def clear(self) -> None:
-        """очистить корзину"""
-        return self.basket.clear()
-
-    def save(self) -> None:
-        """Сохранить корзину (любую сущность)"""
-        return self.save()
-
-    def __len__(self):
-        """получить общее количество товаров в корзине"""
-        return len(self.basket)
+    def merge(self, user: User, order: Order) -> None:  # TODO не работает слияние
+        self.copy_to_basket(user, order)
+        self.copy_to_order(order)

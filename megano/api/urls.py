@@ -31,7 +31,7 @@ urlpatterns = [
 # ORDER
     path('orders', views.OrdersListCreateView.as_view()),  #
     path('order/<int:id>', views.OrderUpdateView.as_view()),  #
-    path('payment/<int:id>', views.PaymentView.as_view()),  #
+    path('payment/<int:id>', views.PaymentView.as_view(), name='pay'),  #
 
 
 ]
