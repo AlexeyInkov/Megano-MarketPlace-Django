@@ -1,14 +1,9 @@
-from typing import Union
-
-from django.conf import settings
 from decimal import Decimal
 
+from django.conf import settings
 from django.contrib.auth.models import User
-from django.shortcuts import get_object_or_404
 
 from api.models import Product, Order, OrderProduct, StatusOrder
-
-
 
 
 class Basket(object):
@@ -35,7 +30,6 @@ class Basket(object):
             self.remove(product_id, user)
 
         self.save()
-
 
     def save(self):
         self.session[settings.BASKET_SESSION_ID] = self.basket
@@ -105,6 +99,6 @@ class Basket(object):
                     price=item['price']
                 )
 
-    def merge(self, user: User, order: Order) -> None:  # TODO не работает слияние
+    def merge(self, user: User, order: Order) -> None:
         self.copy_to_basket(user, order)
         self.copy_to_order(order)

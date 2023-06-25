@@ -1,29 +1,20 @@
-"""
-TODO
-настроить разрешения
-"""
-
-import random
-from decimal import *
-
-from django.contrib.auth.models import User
-from django.http import JsonResponse, HttpResponseRedirect
 import json
+import random
+
 from django.contrib.auth import authenticate, login, logout
-from django.contrib.auth import get_user_model
+from django.contrib.auth.decorators import login_required
+from django.contrib.auth.models import User
 from django.http import HttpResponse
-from django.shortcuts import redirect, reverse
+from django.http import JsonResponse
+from django.shortcuts import redirect
+from django.urls import reverse_lazy
 from rest_framework import status
-from rest_framework.filters import OrderingFilter
-from rest_framework.generics import GenericAPIView, RetrieveAPIView, CreateAPIView, RetrieveUpdateAPIView, ListAPIView, \
-    ListCreateAPIView, UpdateAPIView
-from rest_framework.mixins import ListModelMixin, UpdateModelMixin, RetrieveModelMixin
-from rest_framework.pagination import PageNumberPagination
+from rest_framework.generics import GenericAPIView, RetrieveAPIView, CreateAPIView, RetrieveUpdateAPIView, ListAPIView
+from rest_framework.mixins import ListModelMixin, UpdateModelMixin
 from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from rest_framework.response import Response
 
 from api.services.basket import Basket
-
 from .models import (
     Category,
     Product,
@@ -33,7 +24,8 @@ from .models import (
     Sale,
     Order,
     OrderProduct,
-    Payment, StatusOrder
+    Payment,
+    StatusOrder
 )
 from .serializers import (
     CatalogSerializer,
@@ -45,7 +37,6 @@ from .serializers import (
     SaleSerializer,
     AvatarSerializer,
     OrderSerializer,
-    OrderProductSerializer,
     ChangePasswordSerializer,
     UserSerializer,
     PaymentSerializer
@@ -102,7 +93,7 @@ class AvatarView(UpdateModelMixin, GenericAPIView):
     def get_object(self):
         return self.request.user.profile
 
-    def post(self, request, *args, **kwargs):
+    def post(self, request):
         instance = self.get_object()
         data = {"avatar": {
             "src": request.FILES["avatar"],
@@ -138,7 +129,7 @@ def signIn(request):
 class RegisterView(GenericAPIView):
     serializer_class = UserSerializer
 
-    def post(self, request, *args, **kwargs):
+    def post(self, request):
         data_ = request.data.keys()
         for data in data_:
             data = json.loads(data)
@@ -153,7 +144,7 @@ class RegisterView(GenericAPIView):
         user = authenticate(request, username=username, password=password)
         if user is not None:
             order = Order.objects.create(user=user, status=StatusOrder.objects.get(id=1)).save()
-            basket.copy_to_order(user, order)
+            basket.copy_to_order(order)
             login(request, user)
             return HttpResponse(status=200)
         return HttpResponse(status=500)
@@ -379,7 +370,7 @@ class BasketView(GenericAPIView):
 
 
 class OrdersListCreateView(GenericAPIView):
-    permission_classes = [IsAuthenticated, IsAdminUser]
+    permission_classes = [IsAuthenticated,]
 
     def get(self, request, *args, **kwargs):
         orders = (
@@ -413,10 +404,12 @@ class OrdersListCreateView(GenericAPIView):
         if request.user.is_authenticated:
             order = Order.objects.filter(user=request.user, status=StatusOrder.objects.get(id=1)).get()
             return JsonResponse({"orderId": order.id})
-        return redirect('api:login')
+        return reverse_lazy('api:login')
 
 
 class OrderUpdateView(GenericAPIView):
+    permission_classes = [IsAuthenticated,]
+
     def get(self, request, id):
         order = Order.objects.get(id=id)
         products = []
@@ -432,7 +425,6 @@ class OrderUpdateView(GenericAPIView):
                 partial=True
             )
             if serialised.is_valid():
-
                 products.append(serialised.data)
         data = {
             "id": order.id,

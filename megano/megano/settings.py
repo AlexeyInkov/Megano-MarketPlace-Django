@@ -14,6 +14,7 @@ import os
 from pathlib import Path
 
 import django.middleware.cache
+from django.urls import reverse_lazy
 from dotenv import find_dotenv, load_dotenv
 
 if not find_dotenv():
@@ -167,7 +168,7 @@ LOGIN_REDIRECT_URL = '/'
 
 LOGOUT_REDIRECT_URL = '/'
 
-LOGIN_URL = '/sing_in/'
+LOGIN_URL = '/admin/login/'
 
 BASKET_SESSION_ID = 'basket'
 
