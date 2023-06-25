@@ -16,14 +16,12 @@ Including another URLconf
 """
 from django.conf.urls.static import static
 from django.contrib import admin
-from django.urls import path, include, re_path
-from django.contrib.auth import views as auth_views
+from django.urls import path, include
 
 from megano import settings
 
 urlpatterns = [
-    path('admin/', admin.site.urls),
-    re_path(r'^login', auth_views.LoginView.as_view(), name='login', kwargs={'redirect_authenticated_user': True}),
+    path("admin/", admin.site.urls),
     path("", include("frontend.urls")),
     path("api/", include("api.urls")),
 ]

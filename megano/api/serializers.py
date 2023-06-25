@@ -20,13 +20,13 @@ from .models import (
 class ImageSerializer(serializers.ModelSerializer):
     class Meta:
         model = Image
-        fields = ['src', 'alt']
+        fields = ["src", "alt"]
 
 
 class TagSerializer(serializers.ModelSerializer):
     class Meta:
         model = Tag
-        fields = 'id', 'name'
+        fields = "id", "name"
 
 
 class AvatarSerializer(serializers.ModelSerializer):
@@ -34,10 +34,10 @@ class AvatarSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Profile
-        fields = ['avatar']
+        fields = ["avatar"]
 
     def update(self, instance, validated_data):
-        avatar_data = validated_data.pop('avatar')
+        avatar_data = validated_data.pop("avatar")
         avatar = Image.objects.create(**avatar_data)
         instance.avatar = avatar
         instance.save()
@@ -49,13 +49,13 @@ class ProfileSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Profile
-        fields = 'user', 'fullName', 'email', 'phone', 'avatar'
-        read_only_fields = ['user']
+        fields = "user", "fullName", "email", "phone", "avatar"
+        read_only_fields = ["user"]
 
     def update(self, instance, validated_data):
-        instance.fullName = validated_data.get('fullName', instance.fullName)
-        instance.email = validated_data.get('email', instance.email)
-        instance.phone = validated_data.get('phone', instance.phone)
+        instance.fullName = validated_data.get("fullName", instance.fullName)
+        instance.email = validated_data.get("email", instance.email)
+        instance.phone = validated_data.get("phone", instance.phone)
         instance.save()
         return instance
 
@@ -65,7 +65,7 @@ class UserSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ['username', 'password', 'profile']
+        fields = ["username", "password", "profile"]
 
 
 class ChangePasswordSerializer(serializers.Serializer):
@@ -77,13 +77,13 @@ class ChangePasswordSerializer(serializers.Serializer):
 class SpecificationSerializer(serializers.ModelSerializer):
     class Meta:
         model = Specification
-        fields = ['name', 'value']
+        fields = ["name", "value"]
 
 
 class ReviewSerializer(serializers.ModelSerializer):
     class Meta:
         model = Review
-        fields = ['author', 'text', 'rate', 'date', 'product']
+        fields = ["author", "text", "rate", "date", "product"]
 
 
 class ProductFullSerializer(serializers.ModelSerializer):
@@ -95,20 +95,20 @@ class ProductFullSerializer(serializers.ModelSerializer):
     class Meta:
         model = Product
         fields = [
-            'id',
-            'category',
-            'price',
-            'count',
-            'date',
-            'title',
-            'description',
-            'fullDescription',
-            'freeDelivery',
-            'images',
-            'tags',
-            'reviews',
-            'specifications',
-            'rating'
+            "id",
+            "category",
+            "price",
+            "count",
+            "date",
+            "title",
+            "description",
+            "fullDescription",
+            "freeDelivery",
+            "images",
+            "tags",
+            "reviews",
+            "specifications",
+            "rating",
         ]
 
 
@@ -117,27 +117,22 @@ class ProductSaleSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Product
-        fields = [
-            'price',
-            'title',
-            'images'
-        ]
+        fields = ["price", "title", "images"]
 
 
 class SaleSerializer(serializers.ModelSerializer):
     product = ProductSaleSerializer()
-    dateFrom = serializers.DateField(format='%m-%d')
-    dateTo = serializers.DateField(format='%m-%d')
+    dateFrom = serializers.DateField(format="%m-%d")
+    dateTo = serializers.DateField(format="%m-%d")
 
     class Meta:
         model = Sale
         fields = [
-            'id',
-            'salePrice',
-            'dateFrom',
-            'dateTo',
-            'product',
-
+            "id",
+            "salePrice",
+            "dateFrom",
+            "dateTo",
+            "product",
         ]
 
 
@@ -152,26 +147,26 @@ class ProductShortSerializer(serializers.ModelSerializer):
     class Meta:
         model = Product
         fields = [
-            'id',
-            'category',
-            'price',
-            'count',
-            'date',
-            'title',
-            'description',
-            'freeDelivery',
-            'images',
-            'tags',
-            'reviews',
-            'rating'
+            "id",
+            "category",
+            "price",
+            "count",
+            "date",
+            "title",
+            "description",
+            "freeDelivery",
+            "images",
+            "tags",
+            "reviews",
+            "rating",
         ]
 
     def get_reviews(self, instance):
         return len(Review.objects.filter(product=instance.pk))
 
     def update(self, instance, validated_data):
-        instance.count = validated_data.get('count', instance.count)
-        instance.price = validated_data.get('price', instance.price)
+        instance.count = validated_data.get("count", instance.count)
+        instance.price = validated_data.get("price", instance.price)
         instance.save()
         return instance
 
@@ -181,12 +176,12 @@ class CatalogSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Category
-        fields = 'id', 'title', 'image', 'subcategories'
+        fields = "id", "title", "image", "subcategories"
         depth = 2
 
 
 class OrderSerializer(serializers.ModelSerializer):
-    createdAt = serializers.DateTimeField(format='%Y-%m-%d %H:%M')
+    createdAt = serializers.DateTimeField(format="%Y-%m-%d %H:%M")
     totalCost = serializers.SerializerMethodField()
     status = serializers.SerializerMethodField()
 
@@ -205,7 +200,7 @@ class OrderSerializer(serializers.ModelSerializer):
             "status",
             "city",
             "address",
-            "user"
+            "user",
         ]
 
     def get_totalCost(self, instance):
@@ -215,15 +210,17 @@ class OrderSerializer(serializers.ModelSerializer):
         return instance.status.status
 
     def update(self, instance, validated_data):
-        instance.fullName = validated_data.get('fullName', instance.fullName)
-        instance.email = validated_data.get('email', instance.email)
-        instance.phone = validated_data.get('phone', instance.phone)
+        instance.fullName = validated_data.get("fullName", instance.fullName)
+        instance.email = validated_data.get("email", instance.email)
+        instance.phone = validated_data.get("phone", instance.phone)
 
-        instance.deliveryType = validated_data.get('deliveryType', instance.deliveryType)
-        instance.city = validated_data.get('city', instance.city)
-        instance.address = validated_data.get('address', instance.address)
+        instance.deliveryType = validated_data.get(
+            "deliveryType", instance.deliveryType
+        )
+        instance.city = validated_data.get("city", instance.city)
+        instance.address = validated_data.get("address", instance.address)
 
-        instance.paymentType = validated_data.get('paymentType', instance.paymentType)
+        instance.paymentType = validated_data.get("paymentType", instance.paymentType)
         instance.status = StatusOrder.objects.get(id=2)
 
         instance.save()
@@ -233,26 +230,16 @@ class OrderSerializer(serializers.ModelSerializer):
 class OrderProductSerializer(serializers.ModelSerializer):
     class Meta:
         model = OrderProduct
-        fields = [
-            'order',
-            'product',
-            'price',
-            'count'
-        ]
+        fields = ["order", "product", "price", "count"]
 
 
 class PaymentSerializer(serializers.ModelSerializer):
     class Meta:
         model = Payment
-        fields = [
-            'order',
-            'number',
-            'error'
-
-        ]
+        fields = ["order", "number", "error"]
 
     def create(self, validated_data):
-        order = validated_data['order']
+        order = validated_data["order"]
         payment = Payment.objects.create(**validated_data)
         order.status = StatusOrder.objects.get(id=3)
         order.save()

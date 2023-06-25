@@ -4,9 +4,7 @@ from django.db import models
 
 
 def get_image_path(instance, filename) -> str:
-    return 'image/{alt}/{filename}'.format(
-        alt=instance.alt,
-        filename=filename)
+    return "image/{alt}/{filename}".format(alt=instance.alt, filename=filename)
 
 
 class Image(models.Model):
@@ -18,27 +16,33 @@ class Image(models.Model):
 
 
 class Profile(models.Model):
-    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile')
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="profile")
     fullName = models.CharField(max_length=50, null=True, blank=True)
     email = models.EmailField(max_length=50, null=True, blank=True, unique=True)
     phone = models.CharField(max_length=15, null=True, blank=True)
-    avatar = models.ForeignKey(Image, on_delete=models.CASCADE, null=True, blank=True, related_name='avatar')
+    avatar = models.ForeignKey(
+        Image, on_delete=models.CASCADE, null=True, blank=True, related_name="avatar"
+    )
 
     def __str__(self):
-        return self.user.username + '_profile'
+        return self.user.username + "_profile"
 
 
 class Category(models.Model):
     title = models.CharField(max_length=100)
-    image = models.ForeignKey(Image, on_delete=models.CASCADE, null=True, blank=True, related_name='category')
+    image = models.ForeignKey(
+        Image, on_delete=models.CASCADE, null=True, blank=True, related_name="category"
+    )
     parent = models.ForeignKey(
-        'self', on_delete=models.CASCADE,
+        "self",
+        on_delete=models.CASCADE,
         null=True,
         blank=True,
-        related_name='subcategories')
+        related_name="subcategories",
+    )
 
     class Meta:
-        verbose_name_plural = 'categories'
+        verbose_name_plural = "categories"
 
     def __str__(self):
         return self.title
@@ -56,28 +60,29 @@ class Specification(models.Model):
     value = models.CharField(max_length=100)
 
     def __str__(self):
-        return ' = '.join([self.name, self.value])
+        return " = ".join([self.name, self.value])
 
 
 class Product(models.Model):
-
     category = models.ForeignKey(Category, on_delete=models.PROTECT)
     price = models.FloatField(default=0)
     count = models.IntegerField(default=0)
     date = models.DateTimeField(auto_now_add=True)
     title = models.CharField(max_length=100)
     freeDelivery = models.BooleanField(default=False)
-    images = models.ManyToManyField(Image, related_name='product', default=[])
+    images = models.ManyToManyField(Image, related_name="product", default=[])
     rating = models.FloatField(default=0)
-    tags = models.ManyToManyField(Tag, related_name='product', default=[], blank=True)
+    tags = models.ManyToManyField(Tag, related_name="product", default=[], blank=True)
     fullDescription = models.TextField(null=True, blank=True)
-    specifications = models.ManyToManyField(Specification, related_name='product', default=[], blank=True)
+    specifications = models.ManyToManyField(
+        Specification, related_name="product", default=[], blank=True
+    )
     sold = models.IntegerField(default=0)
     limited_edition = models.BooleanField(default=False)
 
     def description(self):
         if len(str(self.fullDescription)) > 50:
-            return str(self.fullDescription)[:50] + '...'
+            return str(self.fullDescription)[:50] + "..."
         return self.fullDescription
 
     @property
@@ -100,14 +105,16 @@ class Review(models.Model):
     text = models.TextField(null=True, blank=True)
     rate = models.IntegerField(default=0)
     date = models.DateTimeField(auto_now_add=True)
-    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='reviews')
+    product = models.ForeignKey(
+        Product, on_delete=models.CASCADE, related_name="reviews"
+    )
 
     def __str__(self):
         return self.product.title
 
 
 class Sale(models.Model):
-    product = models.ForeignKey(Product, on_delete=models.PROTECT, related_name='sale')
+    product = models.ForeignKey(Product, on_delete=models.PROTECT, related_name="sale")
     salePrice = models.FloatField(default=0)
     dateFrom = models.DateField()
     dateTo = models.DateField()
@@ -122,22 +129,23 @@ class StatusOrder(models.Model):
 
 
 class Order(models.Model):
-
     createdAt = models.DateTimeField(auto_now_add=True)
 
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='orders')
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="orders")
     fullName = models.CharField(max_length=100, null=True, blank=True)
     phone = models.CharField(max_length=16, null=True, blank=True)
     email = models.EmailField(null=True, blank=True)
 
-    deliveryType = models.CharField(max_length=10, default='reg')
+    deliveryType = models.CharField(max_length=10, default="reg")
     city = models.CharField(max_length=50, null=True, blank=True)
     address = models.CharField(max_length=255, null=True, blank=True)
 
-    paymentType = models.CharField(max_length=20, default='online')
+    paymentType = models.CharField(max_length=20, default="online")
 
     delivery_cost = models.FloatField(default=0)
-    status = models.ForeignKey(StatusOrder, on_delete=models.CASCADE, related_name='orders')
+    status = models.ForeignKey(
+        StatusOrder, on_delete=models.CASCADE, related_name="orders"
+    )
 
     def get_products(self, obj):
         data = list()
@@ -152,8 +160,12 @@ class Order(models.Model):
 
 
 class OrderProduct(models.Model):
-    order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name='order_products')
-    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='order_products')
+    order = models.ForeignKey(
+        Order, on_delete=models.CASCADE, related_name="order_products"
+    )
+    product = models.ForeignKey(
+        Product, on_delete=models.CASCADE, related_name="order_products"
+    )
     price = models.FloatField(default=0)
     count = models.PositiveIntegerField(default=1)
 
@@ -165,7 +177,7 @@ class OrderProduct(models.Model):
 
 
 class Payment(models.Model):
-    order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name='payment')
+    order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name="payment")
     number = models.CharField(max_length=8)
     # month = models.CharField(max_length=2)
     # year = models.CharField(max_length=2)
