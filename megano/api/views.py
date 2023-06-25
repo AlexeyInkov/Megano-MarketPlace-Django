@@ -5,22 +5,24 @@ TODO
 
 import random
 from decimal import *
-from django.http import JsonResponse
+
+from django.contrib.auth.models import User
+from django.http import JsonResponse, HttpResponseRedirect
 import json
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth import get_user_model
 from django.http import HttpResponse
-from django.shortcuts import redirect
+from django.shortcuts import redirect, reverse
 from rest_framework import status
 from rest_framework.filters import OrderingFilter
 from rest_framework.generics import GenericAPIView, RetrieveAPIView, CreateAPIView, RetrieveUpdateAPIView, ListAPIView, \
     ListCreateAPIView, UpdateAPIView
 from rest_framework.mixins import ListModelMixin, UpdateModelMixin, RetrieveModelMixin
 from rest_framework.pagination import PageNumberPagination
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from rest_framework.response import Response
 
-from api.servises.basket import Basket
+from api.services.basket import Basket
 
 from .models import (
     Category,
@@ -28,7 +30,10 @@ from .models import (
     Tag,
     Review,
     Profile,
-    Sale, Order, OrderProduct
+    Sale,
+    Order,
+    OrderProduct,
+    Payment, StatusOrder
 )
 from .serializers import (
     CatalogSerializer,
@@ -38,20 +43,128 @@ from .serializers import (
     ProductFullSerializer,
     ProfileSerializer,
     SaleSerializer,
-    AvatarSerializer, OrderSerializer, OrderProductSerializer, ChangePasswordSerializer, UserSerializer
+    AvatarSerializer,
+    OrderSerializer,
+    OrderProductSerializer,
+    ChangePasswordSerializer,
+    UserSerializer,
+    PaymentSerializer
 )
-from .servises.shop import Pagination
-
-User = get_user_model()
+from .services.shop import Pagination
 
 
-class BannersView(ListAPIView):
-    serializer_class = ProductShortSerializer
+class ProfileView(RetrieveUpdateAPIView):
+    serializer_class = ProfileSerializer
+    queryset = Profile.objects.select_related('user')
+    permission_classes = [IsAuthenticated, IsAdminUser]
 
-    def get_queryset(self):
-        queryset = Product.objects.all()
-        rnd = random.randint(1, len(queryset))
-        return queryset[(rnd - 1):rnd]
+    def get_object(self):
+        return self.request.user.profile
+
+    def get(self, request, *args, **kwargs):
+        return self.retrieve(request, *args, **kwargs)
+
+    def post(self, request, *args, **kwargs):
+        return self.update(request, *args, **kwargs)
+
+
+class ChangePasswordView(GenericAPIView):
+    serializer_class = ChangePasswordSerializer
+    model = User
+    permission_classes = (IsAuthenticated, IsAdminUser)
+
+    def get_object(self, queryset=None):
+        obj = self.request.user
+        return obj
+
+    def post(self, request, *args, **kwargs):
+        self.object = self.get_object()
+        serializer = self.get_serializer(data=request.data)
+
+        if serializer.is_valid():
+            if not self.object.check_password(serializer.data.get("currentPassword")):
+                return Response({"currentPassword": ["Wrong password."]}, status=status.HTTP_400_BAD_REQUEST)
+            self.object.set_password(serializer.data.get("newPassword"))
+            self.object.save()
+            response = {
+                'status': 'success',
+                'code': status.HTTP_200_OK
+            }
+            return Response(response)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class AvatarView(UpdateModelMixin, GenericAPIView):
+    serializer_class = AvatarSerializer
+    queryset = Profile.objects.select_related("avatar")
+    permission_classes = [IsAuthenticated, IsAdminUser]
+
+    def get_object(self):
+        return self.request.user.profile
+
+    def post(self, request, *args, **kwargs):
+        instance = self.get_object()
+        data = {"avatar": {
+            "src": request.FILES["avatar"],
+            "alt": request.user.username + "_avatar"
+        }}
+        serializer = AvatarSerializer(instance=instance, data=data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            return JsonResponse(serializer.data)
+
+
+def signIn(request):
+    if request.method == "POST":
+        body = json.loads(request.body)
+        username = body['username']
+        password = body['password']
+        basket = Basket(request)
+        user = authenticate(request, username=username, password=password)
+        if user is not None:
+            login(request, user)
+            order = Order.objects.filter(user=user, status=StatusOrder.objects.get(id=1)).first()
+            if not order:
+                order = Order.objects.create(user=request.user, status=StatusOrder.objects.get(id=1)).save()
+                basket.copy_to_order(order)
+            else:
+                basket.merge(user, order)
+
+            return HttpResponse(status=200)
+        else:
+            return HttpResponse(status=500)
+
+
+class RegisterView(GenericAPIView):
+    serializer_class = UserSerializer
+
+    def post(self, request, *args, **kwargs):
+        data_ = request.data.keys()
+        for data in data_:
+            data = json.loads(data)
+        """Преобразую странный формат данных запроса"""
+        user = User.objects.create(username=data['username'])
+        user.set_password(data['password'])
+        user.save()
+        Profile.objects.create(user=user, fullName=data['name'])
+        username = data['username']
+        password = data['password']
+        basket = Basket(request)
+        user = authenticate(request, username=username, password=password)
+        if user is not None:
+            order = Order.objects.create(user=user, status=StatusOrder.objects.get(id=1)).save()
+            basket.copy_to_order(user, order)
+            login(request, user)
+            return HttpResponse(status=200)
+        return HttpResponse(status=500)
+
+
+def log_out(request):
+    logout(request)
+    return HttpResponse(status=200)
+
+
+#   CATALOG
 
 
 class CategoryView(ListModelMixin, GenericAPIView):
@@ -114,6 +227,15 @@ class CatalogView(ListModelMixin, GenericAPIView):
         )
 
 
+class BannersView(ListAPIView):
+    serializer_class = ProductShortSerializer
+
+    def get_queryset(self):
+        queryset = Product.objects.all()
+        rnd = random.randint(1, len(queryset))
+        return queryset[(rnd - 1):rnd]
+
+
 class ProductPopularView(ListModelMixin, GenericAPIView):
     queryset = Product.objects.order_by('-rating').all()[:8]
     serializer_class = ProductShortSerializer
@@ -161,92 +283,7 @@ class SalesView(ListModelMixin, GenericAPIView):
         )
 
 
-class BasketView(GenericAPIView):
-    def get(self, request):
-        basket = Basket(request)
-        data = []
-        for item in basket:
-            product = ProductShortSerializer(instance=item['product']).data
-            product['count'] = item['count']
-            product['price'] = item['price']
-            data.append(product)
-        return JsonResponse(data, safe=False)
-
-    def post(self, request):
-        basket = Basket(request)
-        product = Product.objects.get(id=request.data['id'])
-        count = int(request.data['count'])
-        basket.change(product=product, count=count)
-        serializer = ProductShortSerializer(
-            instance=product,
-            data=request.session['basket'][str(product.id)],
-            partial=True
-        )
-        if serializer.is_valid():
-            serializer.save()
-            return JsonResponse(serializer.data)
-
-    def delete(self, request):
-        basket = Basket(request)
-        product = Product.objects.get(id=request.data['id'])
-        count = - int(request.data['count'])
-        basket.change(product=product, count=count)
-        data = request.session['basket'].get(str(product.id), None)
-        if data:
-            serializer = ProductShortSerializer(
-                instance=product,
-                data=data,
-                partial=True
-            )
-            if serializer.is_valid():
-                serializer.save()
-                return JsonResponse(serializer.data)
-        return JsonResponse({})
-
-
-def signIn(request):
-    if request.method == "POST":
-        old_basket = Basket(request)
-        body = json.loads(request.body)
-        username = body['username']
-        password = body['password']
-        user = authenticate(request, username=username, password=password)
-        if user is not None:
-            login(request, user)
-            new_basket = Basket(request)
-            new_basket.merge_baskets(old_basket)
-            return HttpResponse(status=200)
-        else:
-            return HttpResponse(status=500)
-
-
-class RegisterView(GenericAPIView):
-    serializer_class = UserSerializer
-
-    def post(self, request, *args, **kwargs):
-        data_ = request.data.keys()
-        for data in data_:
-            data = json.loads(data)
-        """Преобразую странный формат данных запроса"""
-        user = User.objects.create(username=data['username'])
-        user.set_password(data['password'])
-        user.save()
-        profile = Profile.objects.create(user=user, fullName=data['name'])
-        old_basket = Basket(request)
-        username = data['username']
-        password = data['password']
-        user = authenticate(request, username=username, password=password)
-        if user is not None:
-            login(request, user)
-            new_basket = Basket(request)
-            new_basket.merge_baskets(old_basket)
-            return HttpResponse(status=200)
-        return HttpResponse(status=500)
-
-
-def log_out(request):
-    logout(request)
-    return HttpResponse(status=200)
+#   PRODUCT
 
 
 class ProductView(RetrieveAPIView):
@@ -273,6 +310,7 @@ class TagsView(ListModelMixin, GenericAPIView):
 class ReviewView(CreateAPIView):
     serializer_class = ReviewSerializer
     queryset = Review.objects.select_related('product')
+    permission_classes = [IsAuthenticated, IsAdminUser]
 
     def post(self, request, *args, **kwargs):
         request.data['product'] = kwargs['id']
@@ -282,106 +320,100 @@ class ReviewView(CreateAPIView):
         return response
 
 
-class ProfileView(RetrieveUpdateAPIView):
-    serializer_class = ProfileSerializer
-    queryset = Profile.objects.select_related('user')
-
-    def get_object(self):
-        return self.request.user.profile
-
-    def get(self, request, *args, **kwargs):
-        return self.retrieve(request, *args, **kwargs)
-
-    def post(self, request, *args, **kwargs):
-        return self.update(request, *args, **kwargs)
+#   BASKET
 
 
-class ChangePasswordView(GenericAPIView):
-    serializer_class = ChangePasswordSerializer
-    model = User
-    permission_classes = (IsAuthenticated,)
+class BasketView(GenericAPIView):
+    def get(self, request):
+        basket = Basket(request)
+        data = []
+        for item in basket:
+            product = ProductShortSerializer(instance=item['product']).data
+            product['count'] = item['count']
+            product['price'] = item['price']
+            data.append(product)
+        return JsonResponse(data, safe=False)
 
-    def get_object(self, queryset=None):
-        obj = self.request.user
-        return obj
-
-    def post(self, request, *args, **kwargs):
-        self.object = self.get_object()
-        serializer = self.get_serializer(data=request.data)
-
+    def post(self, request):
+        basket = Basket(request)
+        product = Product.objects.get(id=request.data['id'])
+        count = int(request.data['count'])
+        basket.change(user=request.user, product=product, count=count)
+        if request.user.is_authenticated:
+            order = Order.objects.filter(user=request.user, status=StatusOrder.objects.get(id=1)).get()
+            if not order:
+                order = Order.objects.create(user=request.user, status=StatusOrder.objects.get(id=1)).save()
+                basket.copy_to_order(order)
+        serializer = ProductShortSerializer(
+            instance=product,
+            data=request.session['basket'][str(product.id)],
+            partial=True
+        )
         if serializer.is_valid():
-            if not self.object.check_password(serializer.data.get("currentPassword")):
-                return Response({"currentPassword": ["Wrong password."]}, status=status.HTTP_400_BAD_REQUEST)
-            self.object.set_password(serializer.data.get("newPassword"))
-            self.object.save()
-            response = {
-                'status': 'success',
-                'code': status.HTTP_200_OK
-            }
-            return Response(response)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            return JsonResponse(serializer.data)
+
+    def delete(self, request):
+        basket = Basket(request)
+        product = Product.objects.get(id=request.data['id'])
+        count = - int(request.data['count'])
+        price = product.price
+        basket.change(user=request.user, product=product, count=count)
+        if request.user.is_authenticated:
+            order = Order.objects.filter(user=request.user, status=StatusOrder.objects.get(id=1)).get()
+            if not order:
+                order = Order.objects.create(user=request.user, status=StatusOrder.objects.get(id=1)).save()
+                basket.copy_to_order(order)
+        data = request.session['basket'].get(str(product.id), None)
+        if data:
+            serializer = ProductShortSerializer(
+                instance=product,
+                data=data,
+                partial=True
+            )
+            if serializer.is_valid():
+                return JsonResponse(serializer.data)
+        return JsonResponse({})
+
+
+#   ORDER
 
 
 class OrdersListCreateView(GenericAPIView):
+    permission_classes = [IsAuthenticated, IsAdminUser]
 
     def get(self, request, *args, **kwargs):
-        orders = Order.objects.prefetch_related('products').filter(user=self.request.user)
+        orders = (
+            Order.objects.
+            select_related('status_order').
+            prefetch_related('order_products').
+            filter(user=self.request.user, status__in=[2, 3])
+        )
         data_orders = []
         for order in orders:
-            print(order.products)
-
-
-        #     order_products = OrderProduct.objects.filter(order=order)
-        #     data_products = []
-        #     print(order_products)
-        #     for order_product in order_products:
-        #         print(order_product.product_id)
-        #         product = Product.objects.get(id=order_product.product_id)
-        #         print(product)
-        #         serialised = ProductShortSerializer(
-        #             product,
-        #             data={
-        #                 'count': order_product.count,
-        #                 'price': order_product.price
-        #             },
-        #             partial=True
-        #         )
-        #         if serialised.is_valid():
-        #             data_products.append(serialised.data)
-        #             print(serialised.data)
-        #     print(order)
-        #     serialised = OrderSerializer(order, data={})  # , data={'products': data_products}, partial=True)
-        #     print(serialised)
-        #     if serialised.is_valid():
-        #         print('working')
-        #         data_orders.append(serialised.data)
-        #         print(serialised.data)
+            order_products = order.get_products(order)
+            data_products = []
+            for order_product in order_products:
+                product = Product.objects.get(id=order_product.product_id)
+                serialised = ProductShortSerializer(
+                    product,
+                    data={
+                        'count': order_product.count,
+                        'price': order_product.price
+                    },
+                    partial=True
+                )
+                if serialised.is_valid():
+                    data_products.append(serialised.data)
+            serialised = OrderSerializer(order, data={'products': data_products}, partial=True)
+            if serialised.is_valid():
+                data_orders.append(serialised.data)
         return JsonResponse(data_orders, safe=False)
 
     def post(self, request, *args, **kwargs):
         if request.user.is_authenticated:
-            order_serializer = OrderSerializer(
-                data={
-                    'user': request.user.pk,
-                    'status': 'не оформлен'
-                },
-                partial=True)
-            if order_serializer.is_valid():
-                order_serializer.save()
-            for product in request.data:
-                data = {
-                    'order': order_serializer.data['id'],
-                    'product': product['id'],
-                    'price': product['price'],
-                    'count': product['count']
-                }
-                product_serializer = OrderProductSerializer(data=data)
-                if product_serializer.is_valid():
-                    product_serializer.save()
-                basket = Basket(request)
-                basket.clear()
-            return JsonResponse({"orderId": order_serializer.data['id']})
-        return redirect('/login/')
+            order = Order.objects.filter(user=request.user, status=StatusOrder.objects.get(id=1)).get()
+            return JsonResponse({"orderId": order.id})
+        return redirect('api:login')
 
 
 class OrderUpdateView(GenericAPIView):
@@ -390,15 +422,17 @@ class OrderUpdateView(GenericAPIView):
         products = []
         for order_product in OrderProduct.objects.filter(order=order):
             product = Product.objects.get(id=order_product.product_id)
+            data = {
+                'count': order_product.count,
+                'price': order_product.price
+            }
             serialised = ProductShortSerializer(
                 product,
-                data={
-                    'count': order_product.count,
-                    'price': order_product.price
-                },
+                data=data,
                 partial=True
             )
             if serialised.is_valid():
+
                 products.append(serialised.data)
         data = {
             "id": order.id,
@@ -409,7 +443,7 @@ class OrderUpdateView(GenericAPIView):
             "deliveryType": order.deliveryType,
             "paymentType": order.paymentType,
             "totalCost": order.totalCost,
-            "status": order.status,
+            "status": order.status.status,
             "city": order.city,
             "address": order.address,
             "products": products
@@ -419,34 +453,37 @@ class OrderUpdateView(GenericAPIView):
     def post(self, request, id):
         request.data['id'] = request.data['orderId']
         order = Order.objects.get(id=request.data['id'])
+        order.status = 2
         serialized = OrderSerializer(order, data=request.data, partial=True)
         if serialized.is_valid():
             serialized.save()
-        return JsonResponse({"orderId": request.data['id']})
+            Basket(request).clear()
+            return JsonResponse({"orderId": request.data['id']})
 
 
-def payment(request, id):
-    print('qweqwewqeqwe', id)
-    return HttpResponse(status=200)
+class PaymentView(CreateAPIView):
+    serializer_class = PaymentSerializer
+    queryset = Payment.objects.all()
 
+    def get(self, request, id):
+        order = Order.objects.get(id=id)
+        if order.payment is None:
+            return HttpResponse(status=200)
+        if order.status == 3:
+            return redirect("/history-order/")
+        return HttpResponse(status=200)
 
-class AvatarView(UpdateModelMixin, GenericAPIView):
-    serializer_class = AvatarSerializer
-    queryset = Profile.objects.select_related("avatar")
-
-    def get_object(self):
-        return self.request.user.profile
-
-    def post(self, request, *args, **kwargs):
-        instance = self.get_object()
-        data = {"avatar": {
-            "src": request.FILES["avatar"],
-            "alt": request.user.username + "_avatar"
-        }}
-        serializer = AvatarSerializer(instance=instance, data=data, partial=True)
-        if serializer.is_valid():
-            serializer.save()
-            return JsonResponse(serializer.data)
-
-
-
+    def post(self, request, id):
+        order = Order.objects.get(id=id)
+        if order.payment is None:
+            value = request.data['number']
+            if value.isdigit() and len(value) == 8 and int(value) % 2 == 0 and value[7] != '0':
+                request.data['order'] = id
+                request.data['value'] = value
+                request.data['error'] = 'нет'
+                order.status = 3
+                order.save()
+                return self.create(request)
+            order.status = StatusOrder.objects.get(id=4)
+            order.save()
+        return HttpResponse(status=200)

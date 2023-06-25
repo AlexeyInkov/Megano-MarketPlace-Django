@@ -14,7 +14,7 @@ class Image(models.Model):
     alt = models.CharField(max_length=50, null=True, blank=True)
 
     def __str__(self):
-        return self.alt
+        return self.alt or str(self.pk)
 
 
 class Profile(models.Model):
@@ -113,48 +113,62 @@ class Sale(models.Model):
     dateTo = models.DateField()
 
 
+class StatusOrder(models.Model):
+    status = models.CharField(max_length=15)
+    description = models.CharField(max_length=255)
+
+    def __str__(self):
+        return self.status
+
+
 class Order(models.Model):
-    # DELIVERY_CHOICES = [
-    #     ('reg', 'Regular'),
-    #     ('exp', 'Express'),
-    #     ('free', 'Free')
-    # # ]
-    # PAYMENT_CHOICES = [
-    #     ('card', 'Bank Card'),
-    #     ('cash', 'From random account')
-    # ]
 
     createdAt = models.DateTimeField(auto_now_add=True)
 
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='user')
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='orders')
     fullName = models.CharField(max_length=100, null=True, blank=True)
     phone = models.CharField(max_length=16, null=True, blank=True)
     email = models.EmailField(null=True, blank=True)
 
-    deliveryType = models.CharField(max_length=10, default='reg')  # , choices=DELIVERY_CHOICES)
+    deliveryType = models.CharField(max_length=10, default='reg')
     city = models.CharField(max_length=50, null=True, blank=True)
     address = models.CharField(max_length=255, null=True, blank=True)
 
-    paymentType = models.CharField(max_length=20, default='online')  # ,choices=PAYMENT_CHOICES,)
+    paymentType = models.CharField(max_length=20, default='online')
 
-    delivery_cost = models.DecimalField(max_digits=10, decimal_places=2, default=0)
-    status = models.CharField(max_length=100)
+    delivery_cost = models.FloatField(default=0)
+    status = models.ForeignKey(StatusOrder, on_delete=models.CASCADE, related_name='orders')
+
+    def get_products(self, obj):
+        data = list()
+        for item in OrderProduct.objects.filter(order=obj):
+            data.append(item)
+            return data
 
     @property
     def totalCost(self) -> Decimal:
         """Метод получения общей стоимости товаров в заказе"""
-        return Decimal(sum(product.get_cost() for product in self.products.all()))
+        return sum(product.get_cost() for product in self.order_products.all())
 
 
 class OrderProduct(models.Model):
-    order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name='products')
+    order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name='order_products')
     product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='order_products')
-    price = models.DecimalField(max_digits=10, decimal_places=2)
+    price = models.FloatField(default=0)
     count = models.PositiveIntegerField(default=1)
 
     def __str__(self):
         return str(self.id)
 
     def get_cost(self):
-        print(self.price * self.count)
         return self.price * self.count
+
+
+class Payment(models.Model):
+    order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name='payment')
+    number = models.CharField(max_length=8)
+    # month = models.CharField(max_length=2)
+    # year = models.CharField(max_length=2)
+    # code = models.CharField(max_length=3)
+    # name = models.CharField(max_length=25)
+    error = models.CharField(max_length=20)
