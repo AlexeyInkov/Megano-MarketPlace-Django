@@ -21,7 +21,7 @@ from django.urls import path, include
 from megano import settings
 
 urlpatterns = [
-    path('admin/', admin.site.urls),
+    path("admin/", admin.site.urls),
     path("", include("frontend.urls")),
     path("api/", include("api.urls")),
 ]
